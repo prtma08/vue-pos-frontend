@@ -307,7 +307,7 @@ onMounted(async () => {
 }
 
 .brand-wordmark {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--sidebar-brand);
@@ -496,7 +496,7 @@ onMounted(async () => {
 }
 
 .current-page-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--topbar-text);

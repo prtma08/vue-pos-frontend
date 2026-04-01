@@ -235,7 +235,7 @@ const handleLogin = async () => {
 }
 
 .logo-brand {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.75rem;
   font-weight: 800;
   color: var(--text-primary);

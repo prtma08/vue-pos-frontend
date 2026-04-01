@@ -152,7 +152,7 @@
                 <line v-for="i in 5" :key="i" 
                       :x1="chartPadding" :y1="chartPadding + (i * (chartHeight - 2*chartPadding) / 5)"
                       :x2="chartWidth - chartPadding" :y2="chartPadding + (i * (chartHeight - 2*chartPadding) / 5)"
-                      stroke="var(--grid-color)" stroke-width="0.5" stroke-dasharray="4,4"/>
+                      stroke="var(--grid-color)" stroke-width="0.8" stroke-dasharray="4,4"/>
               </g>
               
               <!-- Area Fill Gradient -->
@@ -167,7 +167,7 @@
               <path :d="areaPath" fill="url(#chartAreaGrad)" class="chart-area"/>
               
               <!-- Line Path -->
-              <path :d="linePath" fill="none" stroke="url(#lineGradient)" stroke-width="2.5" 
+              <path :d="linePath" fill="none" stroke="url(#lineGradient)" stroke-width="3.5" 
                     stroke-linecap="round" stroke-linejoin="round" class="chart-line"/>
               
               <!-- Gradient for line -->
@@ -180,22 +180,22 @@
               
               <!-- Data Points (shown on hover via CSS/JS) -->
               <circle v-for="(point, i) in chartPoints" :key="i"
-                      :cx="point.x" :cy="point.y" r="4"
-                      fill="white" stroke="var(--revenue-start)" stroke-width="2"
+                      :cx="point.x" :cy="point.y" r="5"
+                      fill="white" stroke="var(--revenue-start)" stroke-width="2.5"
                       class="chart-point" :class="{ 'point-active': hoveredIndex === i }"
                       @mouseenter="hoveredIndex = i" @mouseleave="hoveredIndex = null"/>
               
               <!-- Tooltip -->
               <g v-if="hoveredIndex !== null && chartPoints[hoveredIndex]" class="chart-tooltip">
-                <rect :x="chartPoints[hoveredIndex].x - 45" :y="chartPoints[hoveredIndex].y - 55" 
-                      width="90" height="48" rx="8" fill="var(--tooltip-bg)" 
+                <rect :x="chartPoints[hoveredIndex].x - 55" :y="chartPoints[hoveredIndex].y - 62" 
+                      width="110" height="54" rx="8" fill="var(--tooltip-bg)" 
                       stroke="var(--border)" stroke-width="1"/>
-                <text :x="chartPoints[hoveredIndex].x" :y="chartPoints[hoveredIndex].y - 35" 
-                      text-anchor="middle" fill="var(--text-primary)" font-size="11" font-weight="600">
-                  {{ formatCurrencyShort(chartData[hoveredIndex]?.value || 0) }}
+                <text :x="chartPoints[hoveredIndex].x" :y="chartPoints[hoveredIndex].y - 42" 
+                      text-anchor="middle" fill="var(--text-primary)" font-size="12" font-weight="700">
+                  Rp {{ formatCurrencyShort(chartData[hoveredIndex]?.value || 0) }}
                 </text>
-                <text :x="chartPoints[hoveredIndex].x" :y="chartPoints[hoveredIndex].y - 20" 
-                      text-anchor="middle" fill="var(--text-secondary)" font-size="9">
+                <text :x="chartPoints[hoveredIndex].x" :y="chartPoints[hoveredIndex].y - 24" 
+                      text-anchor="middle" fill="var(--text-secondary)" font-size="10" font-weight="500">
                   {{ chartData[hoveredIndex]?.label }}
                 </text>
               </g>
@@ -204,8 +204,8 @@
               <g class="chart-axis-x">
                 <text v-for="(label, i) in xAxisLabels" :key="i"
                       :x="chartPadding + (i * (chartWidth - 2*chartPadding) / (xAxisLabels.length - 1))"
-                      :y="chartHeight - chartPadding + 20"
-                      text-anchor="middle" fill="var(--text-tertiary)" font-size="9">
+                      :y="chartHeight - chartPadding + 22"
+                      text-anchor="middle" fill="var(--text-secondary)" font-size="11" font-weight="500">
                   {{ label }}
                 </text>
               </g>
@@ -214,8 +214,8 @@
               <g class="chart-axis-y">
                 <text v-for="(label, i) in yAxisLabels" :key="i"
                       :x="chartPadding - 10" 
-                      :y="chartPadding + (i * (chartHeight - 2*chartPadding) / (yAxisLabels.length - 1)) + 3"
-                      text-anchor="end" fill="var(--text-tertiary)" font-size="9">
+                      :y="chartPadding + (i * (chartHeight - 2*chartPadding) / (yAxisLabels.length - 1)) + 4"
+                      text-anchor="end" fill="var(--text-secondary)" font-size="11" font-weight="500">
                   {{ label }}
                 </text>
               </g>
@@ -525,7 +525,7 @@ const getProductColor = (name) => {
 // Chart Configuration
 const chartRef = ref(null)
 const chartWidth = 800
-const chartHeight = 280
+const chartHeight = 320
 const chartPadding = 50
 const chartPeriod = ref('30d')
 const hoveredIndex = ref(null)
@@ -646,10 +646,10 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 
 <style scoped>
 /* ── CSS Variables: Professional Color System ── */
-.admin-layout {
-  --revenue-start: #6366f1;
-  --revenue-end: #8b5cf6;
-  --revenue-glow: rgba(99, 102, 241, 0.12);
+.dashboard-page {
+  --revenue-start: #4F46E5;
+  --revenue-end: #7C3AED;
+  --revenue-glow: rgba(79, 70, 229, 0.10);
   
   --margin-excellent: #10b981;
   --margin-good: #22c55e;
@@ -666,20 +666,20 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
   --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.admin-layout[data-theme="dark"] {
+:global([data-theme="dark"]) .dashboard-page {
   --revenue-start: #818cf8;
   --revenue-end: #a78bfa;
-  --revenue-glow: rgba(129, 140, 248, 0.18);
+  --revenue-glow: rgba(129, 140, 248, 0.15);
   --grid-color: rgba(255,255,255,0.1);
   --tooltip-bg: var(--bg-surface, #1f2937);
 }
 
 /* ── Layout ── */
-.admin-layout {
+.dashboard-page {
   display: flex;
   min-height: 100vh;
   background: var(--bg-base);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 /* ── Sidebar: Minimal Professional ── */
@@ -719,7 +719,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 }
 
 .brand-wordmark {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -861,7 +861,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 }
 
 .header-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -1030,7 +1030,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 }
 
 .value-main {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.875rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -1042,6 +1042,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  transition: none; /* Prevent color animation fighting -webkit-text-fill-color:transparent */
 }
 
 .value-neutral .value-main { color: var(--text-primary); }
@@ -1135,7 +1136,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 }
 
 .chart-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -1184,7 +1185,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 
 .line-chart {
   width: 100%;
-  height: 280px;
+  height: 320px;
 }
 
 .line-chart svg {
@@ -1212,8 +1213,8 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 }
 
 .chart-point:hover, .chart-point.point-active {
-  r: 6;
-  stroke-width: 3;
+  r: 7;
+  stroke-width: 3.5;
 }
 
 .chart-tooltip {
@@ -1232,7 +1233,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 }
 
 .section-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -1519,13 +1520,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 .metric-card:nth-child(4) { animation-delay: 0.2s; }
 
 .chart-line {
-  stroke-dasharray: 1000;
-  stroke-dashoffset: 1000;
-  animation: drawLine 1.2s ease forwards 0.3s;
-}
-
-@keyframes drawLine {
-  to { stroke-dashoffset: 0; }
+  filter: drop-shadow(0 2px 4px rgba(79, 70, 229, 0.18));
 }
 
 /* ── Staff Overview Section ── */
@@ -1547,7 +1542,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
   opacity: 0;
 }
 
-.admin-layout[data-theme="dark"] .staff-section {
+:global([data-theme="dark"]) .dashboard-page .staff-section {
   --staff-bar-inactive: linear-gradient(90deg, #374151, #4b5563);
 }
 
@@ -1561,7 +1556,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 }
 
 .staff-section-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.35rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -1796,7 +1791,7 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
 }
 
 .revenue-value {
-  font-family: 'Playfair Display', 'EB Garamond', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1rem;
   font-weight: 700;
   color: var(--text-primary);

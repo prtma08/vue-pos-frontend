@@ -217,7 +217,7 @@ const handleDelete = async () => {
 }
 
 .page-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 2.125rem;
   font-weight: 700;
   background: linear-gradient(135deg, #1e293b 0%, #475569 50%, #64748b 100%);
@@ -815,7 +815,7 @@ const handleDelete = async () => {
 }
 
 .modal-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.425rem;
   font-weight: 700;
   color: #1e293b;

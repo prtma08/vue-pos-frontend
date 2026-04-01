@@ -542,7 +542,7 @@ const getProductColor = (name) => {
 }
 
 .page-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -909,7 +909,7 @@ const getProductColor = (name) => {
 
 /* Price & HPP */
 .col-price {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 700;
   color: var(--accent);
   text-align: center;
@@ -1047,7 +1047,7 @@ const getProductColor = (name) => {
 }
 
 .modal-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.35rem; /* Slightly larger */
   font-weight: 700;
   color: #0f172a; /* Ensure dark text */
@@ -1226,7 +1226,7 @@ const getProductColor = (name) => {
 }
 
 .preview-value {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 700;
   color: #059669;
   font-size: 1.05rem;

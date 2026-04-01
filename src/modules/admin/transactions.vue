@@ -232,7 +232,7 @@ const clearFilters = () => {
 }
 
 .page-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 2rem;
   font-weight: 700;
   background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%);
@@ -308,7 +308,7 @@ const clearFilters = () => {
 }
 
 .kpi-value {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.375rem;
   font-weight: 700;
   background: linear-gradient(135deg, #059669 0%, #10b981 100%);
@@ -648,7 +648,7 @@ const clearFilters = () => {
 }
 
 .col-total {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 700;
   white-space: nowrap;
   color: #1e293b;
@@ -944,7 +944,7 @@ const clearFilters = () => {
 }
 
 .modal-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.375rem;
   font-weight: 700;
   color: #1e293b;
@@ -1060,7 +1060,7 @@ const clearFilters = () => {
 }
 
 .section-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1rem;
   font-weight: 600;
   color: #1e293b;
@@ -1127,7 +1127,7 @@ const clearFilters = () => {
 }
 
 .font-serif {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
 }
 
@@ -1164,7 +1164,7 @@ const clearFilters = () => {
 }
 
 .total-display {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.5rem;
   font-weight: 700;
   background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);

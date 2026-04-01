@@ -546,7 +546,7 @@ onMounted(fetchReport)
 }
 
 .brand-wordmark {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -694,7 +694,7 @@ onMounted(fetchReport)
 }
 
 .header-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.625rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -924,7 +924,7 @@ onMounted(fetchReport)
 }
 
 .value-number {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -1044,7 +1044,7 @@ onMounted(fetchReport)
 }
 
 .section-heading {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -1170,7 +1170,7 @@ onMounted(fetchReport)
 }
 
 .cell-amount {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   color: var(--text-primary);
 }

@@ -470,7 +470,7 @@ onMounted(async () => {
 }
 
 .brand-wordmark {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -901,7 +901,7 @@ onMounted(async () => {
 }
 
 .product-price {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -1002,7 +1002,7 @@ onMounted(async () => {
 }
 
 .checkout-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.375rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -1133,7 +1133,7 @@ onMounted(async () => {
 }
 
 .row-total {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -1283,7 +1283,7 @@ onMounted(async () => {
 }
 
 .total-value {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -1376,7 +1376,7 @@ onMounted(async () => {
 }
 
 .btn-total {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 700;
   font-size: 1rem;
   opacity: 0.9;
@@ -1412,7 +1412,7 @@ onMounted(async () => {
 }
 
 .checkout-empty h3 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--text-secondary);

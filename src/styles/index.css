@@ -1,13 +1,10 @@
 /* ══════════════════════════════════════════════════════════════════════════════
    NEXTORE DESIGN SYSTEM — index.css
    Dual Theme: Light (Professional) + Dark (Sleek)
-   Typography: Playfair Display (Serif) + Inter (Sans-serif)
+   Typography: Plus Jakarta Sans (Primary) + Inter (Body)
    ══════════════════════════════════════════════════════════════════════════════ */
 
 @import "tailwindcss";
-
-/* Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
 /* ── Theme Variables ──────────────────────────────────────────────────────── */
 
@@ -28,8 +25,12 @@
   /* Accent — Corporate Blue/Sage */
   --accent:         #2563EB;
   --accent-hover:   #1D4ED8;
+  --accent-dark:    #1E40AF;
   --accent-soft:    #EFF6FF;
   --accent-muted:   #BFDBFE;
+
+  /* Borders */
+  --border-subtle:  rgba(0,0,0,0.07);
 
   /* Success */
   --success:        #059669;
@@ -46,8 +47,6 @@
   /* Borders */
   --border:         #E7E5E4;
   --border-strong:  #C7C3BD;
-
-  /* Shadows */
   --shadow-sm:      0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md:      0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
   --shadow-lg:      0 10px 30px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.05);
@@ -76,8 +75,12 @@
   /* Accent — Gold/Ember */
   --accent:         #F59E0B;
   --accent-hover:   #D97706;
+  --accent-dark:    #B45309;
   --accent-soft:    rgba(245,158,11,0.12);
   --accent-muted:   rgba(245,158,11,0.25);
+
+  /* Borders */
+  --border-subtle:  rgba(255,255,255,0.07);
 
   /* Success */
   --success:        #10B981;
@@ -94,8 +97,6 @@
   /* Borders */
   --border:         #2D3249;
   --border-strong:  #3F4560;
-
-  /* Shadows */
   --shadow-sm:      0 1px 3px rgba(0,0,0,0.30), 0 1px 2px rgba(0,0,0,0.20);
   --shadow-md:      0 4px 12px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.25);
   --shadow-lg:      0 10px 30px rgba(0,0,0,0.50), 0 4px 8px rgba(0,0,0,0.30);
@@ -113,43 +114,43 @@
 
 html  { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
 body  {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   background-color: var(--bg-base);
   color: var(--text-primary);
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ── Typography Scale ─────────────────────────────────────────────────────── */
-.font-serif   { font-family: 'Playfair Display', Georgia, serif; }
-.font-sans    { font-family: 'Inter', system-ui, sans-serif; }
+.font-serif   { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+.font-sans    { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; }
 
-/* Display — Serif for hero numbers */
+/* Display — Bold for hero numbers */
 .text-display {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 700;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 800;
   font-size: 2.25rem;
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
 
-/* Heading — Serif for section titles */
+/* Heading — Semibold for section titles */
 .text-heading {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 600;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
   font-size: 1.5rem;
   line-height: 1.3;
 }
 
-/* Subheading — Serif medium */
+/* Subheading */
 .text-subheading {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 500;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
   font-size: 1.125rem;
 }
 
-/* Label — Sans-serif caps */
+/* Label — Uppercase caps */
 .text-label {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -157,14 +158,14 @@ body  {
   color: var(--text-tertiary);
 }
 
-/* Body — Sans-serif */
-.text-body    { font-family: 'Inter', system-ui, sans-serif; font-size: 0.875rem; }
-.text-caption { font-family: 'Inter', system-ui, sans-serif; font-size: 0.75rem; color: var(--text-secondary); }
+/* Body */
+.text-body    { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; font-size: 0.875rem; }
+.text-caption { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; font-size: 0.75rem; color: var(--text-secondary); }
 
 /* KPI numbers */
 .text-kpi {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 700;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 800;
   font-size: 2rem;
   line-height: 1.1;
   color: var(--text-primary);
@@ -172,8 +173,8 @@ body  {
 
 /* Price */
 .text-price {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 600;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
   font-size: 1.05rem;
   color: var(--accent);
 }
@@ -206,7 +207,7 @@ body  {
   border-radius: 10px;
   border: none;
   cursor: pointer;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1;
@@ -270,7 +271,7 @@ body  {
   background: var(--bg-base);
   border: 1.5px solid var(--border);
   border-radius: 10px;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
   font-size: 0.9rem;
   color: var(--text-primary);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -362,7 +363,7 @@ body  {
   align-items: center;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -400,8 +401,12 @@ body  {
   transition-timing-function: ease;
 }
 
-/* Exclude transitions on animations (avoids fighting) */
-.animate-spin, .animate-fadeIn, .animate-slideIn {
+/* Exclude transitions on elements using gradient text (background-clip: text)
+   and on animations — avoids color: fighting -webkit-text-fill-color: transparent */
+.animate-spin, .animate-fadeIn, .animate-slideIn,
+.metric-featured .value-main,
+[style*="background-clip"],
+[style*="-webkit-text-fill-color"] {
   transition: none;
 }
 
