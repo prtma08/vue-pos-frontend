@@ -7,7 +7,11 @@ import MainLayout from '@/layouts/MainLayout.vue'
 
 // ─── Eagerly-loaded pages (top-level & critical) ───────────────────────────────
 import Login from '@/modules/auth/login.vue'
+import RoleSelector from '@/modules/auth/RoleSelector.vue'
 import CashierCheckout from '@/modules/cashier/checkout.vue'
+import PosDeviceSelector from '@/modules/cashier/PosDeviceSelector.vue'
+import OpeningShift from '@/modules/cashier/OpeningShift.vue'
+import ClosingShift from '@/modules/cashier/ClosingShift.vue'
 
 // ─── Lazy-loaded admin pages ──────────────────────────────────────────────────
 const AdminDashboard = () => import('@/modules/admin/dashboard.vue')
@@ -18,6 +22,12 @@ const AdminAccounts = () => import('@/modules/admin/accounts.vue')
 const AdminTransactions = () => import('@/modules/admin/transactions.vue')
 const AdminFinance = () => import('@/modules/admin/finance.vue')
 const AdminReconciliation = () => import('@/modules/admin/reconciliation.vue')
+const AdminDiscounts = () => import('@/modules/admin/discounts.vue')
+const AdminPosDevices = () => import('@/modules/admin/posDevices.vue')
+const AdminPurchase = () => import('@/modules/admin/purchase.vue')
+const AdminBundles = () => import('@/modules/admin/bundles.vue')
+const AdminSalesReport = () => import('@/modules/admin/salesReport.vue')
+const AdminExpired = () => import('@/modules/admin/expired.vue')
 
 // ─── 404 placeholder ─────────────────────────────────────────────────────────
 const NotFound = defineComponent({
@@ -36,6 +46,14 @@ const NotFound = defineComponent({
   ]),
 })
 
+// ─── Role → default redirect map ─────────────────────────────────────────────
+const ROLE_REDIRECTS = {
+  superuser: '/admin/dashboard',
+  admin: '/admin/dashboard',
+  supervisor: '/admin/transactions',
+  kasir: '/cashier',
+}
+
 // ─── Routes ──────────────────────────────────────────────────────────────────
 const routes = [
   // Public
@@ -47,19 +65,51 @@ const routes = [
     meta: { requiresAuth: false, title: 'Login — Nextore POS' },
   },
 
-  // Cashier (full-screen, no sidebar)
+  // Role Selection (auth required, no specific role)
+  {
+    path: '/role-select',
+    name: 'RoleSelector',
+    component: RoleSelector,
+    meta: { requiresAuth: true, title: 'Pilih Role — Nextore POS' },
+  },
+
+  // POS Device Selection (kasir only)
+  {
+    path: '/cashier/device-select',
+    name: 'PosDeviceSelector',
+    component: PosDeviceSelector,
+    meta: { requiresAuth: true, roles: ['kasir'], title: 'Pilih Terminal — Nextore POS' },
+  },
+
+  // Opening Shift (kasir, after POS device select)
+  {
+    path: '/cashier/opening-shift',
+    name: 'OpeningShift',
+    component: OpeningShift,
+    meta: { requiresAuth: true, roles: ['kasir'], requiresPosDevice: true, title: 'Buka Shift — Nextore POS' },
+  },
+
+  // Cashier (full-screen, no sidebar — requires POS device + open shift)
   {
     path: '/cashier',
     name: 'Cashier',
     component: CashierCheckout,
-    meta: { requiresAuth: true, roles: ['kasir', 'supervisor', 'admin'], title: 'Kasir — Nextore POS' },
+    meta: { requiresAuth: true, roles: ['kasir', 'supervisor', 'admin', 'superuser'], requiresPosDevice: true, requiresShift: true, title: 'Kasir — Nextore POS' },
+  },
+
+  // Closing Shift
+  {
+    path: '/cashier/closing-shift',
+    name: 'ClosingShift',
+    component: ClosingShift,
+    meta: { requiresAuth: true, roles: ['kasir'], requiresPosDevice: true, title: 'Tutup Shift — Nextore POS' },
   },
 
   // ── Admin (nested inside MainLayout) ───────────────────────────────────
   {
     path: '/admin',
     component: MainLayout,
-    meta: { requiresAuth: true, roles: ['admin', 'supervisor'] },
+    meta: { requiresAuth: true, roles: ['admin', 'supervisor', 'superuser'] },
     children: [
       // Index → redirect to dashboard
       { path: '', redirect: { name: 'AdminDashboard' } },
@@ -68,49 +118,85 @@ const routes = [
         path: 'dashboard',
         name: 'AdminDashboard',
         component: AdminDashboard,
-        meta: { requiresAuth: true, roles: ['admin'], title: 'Dashboard — Nextore' },
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Dashboard — Nextore' },
       },
       {
         path: 'categories',
         name: 'AdminCategories',
         component: AdminCategories,
-        meta: { requiresAuth: true, roles: ['admin'], title: 'Kategori — Nextore' },
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Kategori — Nextore' },
       },
       {
         path: 'products',
         name: 'AdminProducts',
         component: AdminProducts,
-        meta: { requiresAuth: true, roles: ['admin'], title: 'Produk — Nextore' },
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Produk — Nextore' },
       },
       {
         path: 'members',
         name: 'AdminMembers',
         component: AdminMembers,
-        meta: { requiresAuth: true, roles: ['admin', 'supervisor'], title: 'Member — Nextore' },
+        meta: { requiresAuth: true, roles: ['admin', 'supervisor', 'superuser'], title: 'Member — Nextore' },
       },
       {
         path: 'accounts',
         name: 'AdminAccounts',
         component: AdminAccounts,
-        meta: { requiresAuth: true, roles: ['admin'], title: 'Kelola Akun — Nextore' },
+        meta: { requiresAuth: true, roles: ['superuser'], title: 'Kelola Akun — Nextore' },
       },
       {
         path: 'transactions',
         name: 'AdminTransactions',
         component: AdminTransactions,
-        meta: { requiresAuth: true, roles: ['admin', 'supervisor'], title: 'Riwayat Transaksi — Nextore' },
+        meta: { requiresAuth: true, roles: ['admin', 'supervisor', 'superuser'], title: 'Riwayat Transaksi — Nextore' },
       },
       {
         path: 'finance',
         name: 'AdminFinance',
         component: AdminFinance,
-        meta: { requiresAuth: true, roles: ['admin'], title: 'Laporan Laba — Nextore' },
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Laporan Laba — Nextore' },
       },
       {
         path: 'reconciliation',
         name: 'AdminReconciliation',
         component: AdminReconciliation,
-        meta: { requiresAuth: true, roles: ['admin', 'supervisor'], title: 'Rekonsiliasi — Nextore' },
+        meta: { requiresAuth: true, roles: ['admin', 'supervisor', 'superuser'], title: 'Rekonsiliasi — Nextore' },
+      },
+      {
+        path: 'discounts',
+        name: 'AdminDiscounts',
+        component: AdminDiscounts,
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Manajemen Diskon — Nextore' },
+      },
+      {
+        path: 'pos-devices',
+        name: 'AdminPosDevices',
+        component: AdminPosDevices,
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'POS Terminal — Nextore' },
+      },
+      {
+        path: 'purchase',
+        name: 'AdminPurchase',
+        component: AdminPurchase,
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Purchase Barang — Nextore' },
+      },
+      {
+        path: 'bundles',
+        name: 'AdminBundles',
+        component: AdminBundles,
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Manajemen Paket — Nextore' },
+      },
+      {
+        path: 'sales-report',
+        name: 'AdminSalesReport',
+        component: AdminSalesReport,
+        meta: { requiresAuth: true, roles: ['admin', 'supervisor', 'superuser'], title: 'Laporan Penjualan — Nextore' },
+      },
+      {
+        path: 'expired',
+        name: 'AdminExpired',
+        component: AdminExpired,
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Laporan Expired — Nextore' },
       },
     ],
   },
@@ -133,11 +219,12 @@ router.beforeEach(async (to, _from, next) => {
   // Set page title
   document.title = to.meta.title || 'Nextore POS'
 
-  // Already authed + going to login → redirect to role page
+  // Already authed + going to login → redirect based on state
   if (to.path === '/login') {
     if (authStore.isAuthenticated) {
-      const roleRedirects = { admin: '/admin/dashboard', supervisor: '/admin/transactions', kasir: '/cashier' }
-      return next(roleRedirects[authStore.userRole] || '/login')
+      // If no active role selected (multi-role user), go to role selector
+      if (authStore.needsRoleSelection) return next('/role-select')
+      return next(ROLE_REDIRECTS[authStore.activeRole] || '/role-select')
     }
     return next()
   }
@@ -150,15 +237,39 @@ router.beforeEach(async (to, _from, next) => {
       if (!ok) return next('/login')
     }
 
-    // Role check (use matched records for inherited meta)
-    const requiredRoles = to.meta.roles
-    if (requiredRoles?.length && !requiredRoles.includes(authStore.userRole)) {
-      if (import.meta.env.DEV) {
-        console.warn(`[Router] Access denied to '${to.path}' — need ${requiredRoles.join('/')} but got '${authStore.userRole}'`)
-      }
-      const fallback = { admin: '/admin/dashboard', supervisor: '/admin/transactions', kasir: '/cashier' }
-      return next(fallback[authStore.userRole] || '/login')
+    // After auth check — if user needs role selection, redirect (unless already going there)
+    if (authStore.needsRoleSelection && to.name !== 'RoleSelector') {
+      return next('/role-select')
     }
+
+    // Role check (use activeRole)
+    const requiredRoles = to.meta.roles
+    if (requiredRoles?.length && !requiredRoles.includes(authStore.activeRole)) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Router] Access denied to '${to.path}' — need ${requiredRoles.join('/')} but got '${authStore.activeRole}'`)
+      }
+      return next(ROLE_REDIRECTS[authStore.activeRole] || '/role-select')
+    }
+
+    // POS Device check for cashier routes
+    if (to.meta.requiresPosDevice && authStore.needsPosDevice) {
+      return next('/cashier/device-select')
+    }
+
+    // Shift check: cashier must have open shift to access POS
+    if (to.meta.requiresShift) {
+      const { useShiftStore } = await import('@/stores/shift')
+      const shiftStore = useShiftStore()
+      shiftStore.restoreShift()
+      if (!shiftStore.isShiftOpen) {
+        return next('/cashier/opening-shift')
+      }
+    }
+  }
+
+  // Role selector guard: redirect if role already selected
+  if (to.name === 'RoleSelector' && authStore.activeRole) {
+    return next(ROLE_REDIRECTS[authStore.activeRole] || '/admin/dashboard')
   }
 
   next()

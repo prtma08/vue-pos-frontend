@@ -26,7 +26,7 @@
               :class="{ 'is-active': order.id === cartStore.activeOrderId }"
               @click="cartStore.setActiveOrder(order.id)"
             >
-              <span class="tab-label">Pesanan {{ cartStore.orders.indexOf(order) + 1 }}</span>
+              <span class="tab-label">{{ order.customerName ? order.customerName : `Pesanan ${cartStore.orders.indexOf(order) + 1}` }}</span>
               <button class="tab-remove" @click.stop="handleClearOrder(order.id)" title="Hapus">×</button>
             </button>
             <button v-if="cartStore.canCreateNewOrder" class="order-tab-add" @click="handleCreateOrder" title="Pesanan baru">
@@ -59,10 +59,21 @@
           </button>
 
           <!-- Admin Link -->
-          <router-link v-if="authStore.isAdmin" to="/admin" class="btn-link">Admin</router-link>
+          <router-link v-if="authStore.isAdmin || authStore.isSuperuser" to="/admin" class="btn-link">Admin</router-link>
 
-          <!-- Logout -->
-          <button class="btn-logout" @click="handleLogout">Keluar</button>
+          <!-- Switch Role (multi-role users) -->
+          <button v-if="authStore.roles && authStore.roles.length > 1" class="btn-switch-role" @click="handleSwitchRole" title="Ganti Role">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+            Switch Role
+          </button>
+
+          <!-- Closing Shift -->
+          <button class="btn-close-shift" @click="handleClosingShift" title="Tutup Shift">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            Tutup Shift
+          </button>
         </div>
       </div>
     </header>
@@ -180,6 +191,12 @@
                 <span class="qty-num">{{ item.quantity }}</span>
                 <button class="qty-inc" @click="adjustQty(index, 1)">+</button>
                 <span class="row-total">Rp {{ formatCurrency(item.subtotal) }}</span>
+                <button class="row-edit-price" @click="promptPriceChange(index)" title="Ubah Harga">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
                 <button class="row-remove" @click="handleRemoveItem(index)" title="Hapus">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <path d="M18 6 6 18M6 6l12 12"/>
@@ -189,20 +206,30 @@
             </div>
           </div>
 
-          <!-- Payment Method Selector -->
-          <div class="payment-selector">
-            <span class="section-label">Pembayaran</span>
-            <div class="payment-options">
-              <button
-                v-for="m in ['CASH', 'TRANSFER', 'QRIS']"
-                :key="m"
-                class="payment-option"
-                :class="{ 'is-selected': activeOrder.paymentMethod === m }"
-                @click="cartStore.setPaymentMethod(activeOrder.id, m)"
-              >
-                <span class="payment-icon">{{ paymentIcon(m) }}</span>
-                <span class="payment-name">{{ m }}</span>
-              </button>
+          <!-- Cash-Only Payment -->
+          <div class="payment-section">
+            <span class="section-label">💵 Pembayaran Tunai</span>
+            <div class="cash-input-row">
+              <span class="cash-prefix">Rp</span>
+              <input
+                v-model="cashInputFormatted"
+                type="text"
+                inputmode="numeric"
+                placeholder="Masukkan uang diterima"
+                class="cash-input"
+                @input="formatCashInput"
+              />
+            </div>
+            <div class="quick-cash">
+              <button type="button" v-for="amt in quickCashAmounts" :key="amt" class="quick-cash-btn" @click="setQuickCash(amt)">{{ formatCurrency(amt) }}</button>
+              <button type="button" class="quick-cash-btn exact" @click="setQuickCash(activeOrder.summary.total)">Uang Pas</button>
+            </div>
+            <div v-if="changeAmount > 0" class="change-display">
+              <span>Kembalian</span>
+              <span class="change-value">Rp {{ formatCurrency(changeAmount) }}</span>
+            </div>
+            <div v-if="cashInputRaw > 0 && cashInputRaw < activeOrder.summary.total" class="cash-warning">
+              ⚠️ Uang kurang Rp {{ formatCurrency(activeOrder.summary.total - cashInputRaw) }}
             </div>
           </div>
 
@@ -215,6 +242,31 @@
                 {{ m.name }} • {{ m.phone }}
               </option>
             </select>
+            <button class="btn-add-inline" @click="showNewMemberForm = !showNewMemberForm">
+              {{ showNewMemberForm ? '✕ Batal' : '+ Member Baru' }}
+            </button>
+            <div v-if="showNewMemberForm" class="inline-member-form">
+              <input v-model="newMemberForm.name" class="input-inline" placeholder="Nama member" />
+              <input v-model="newMemberForm.phone" class="input-inline" placeholder="No. HP" />
+              <button class="btn-save-inline" @click="handleAddMember" :disabled="!newMemberForm.name.trim()">Simpan</button>
+            </div>
+          </div>
+
+          <!-- Customer Name (for pending orders) -->
+          <div class="customer-name-input">
+            <span class="section-label">Nama Customer</span>
+            <input
+              :value="activeOrder.customerName || ''"
+              @input="activeOrder.customerName = $event.target.value"
+              class="input-inline full"
+              placeholder="Opsional — untuk identifikasi pending order"
+            />
+          </div>
+
+          <div class="order-discount-action">
+            <button class="btn-discount" @click="promptDiscount" title="Berikan diskon untuk seluruh order">
+              <span class="disc-icon">%</span> Beri Diskon Khusus
+            </button>
           </div>
 
           <!-- Order Summary -->
@@ -248,15 +300,11 @@
           <button
             class="btn-checkout"
             @click="handleSubmitOrder"
-            :disabled="submitting || !activeOrder.items.length"
+            :disabled="submitting || !activeOrder.items.length || cashInputRaw < activeOrder.summary.total"
           >
             <span v-if="submitting" class="btn-loader"></span>
-            <span v-else class="btn-icon">
-              <span v-if="activeOrder.paymentMethod === 'CASH'">💵</span>
-              <span v-else-if="activeOrder.paymentMethod === 'TRANSFER'">🏦</span>
-              <span v-else>📱</span>
-            </span>
-            <span class="btn-label">{{ submitting ? 'Memproses...' : `Bayar via ${activeOrder.paymentMethod}` }}</span>
+            <span v-else class="btn-icon">💵</span>
+            <span class="btn-label">{{ submitting ? 'Memproses...' : 'Bayar Tunai' }}</span>
             <span class="btn-total">{{ formatCurrency(activeOrder.summary.total) }}</span>
           </button>
         </div>
@@ -281,6 +329,14 @@
           </div>
         </transition>
 
+        <!-- Supervisor Override Modal -->
+        <SupervisorOverride
+          v-model="showOverrideModal"
+          :actionLabel="overrideActionLabel"
+          @approved="handleSupervisorApproved"
+          @denied="handleSupervisorDenied"
+        />
+
       </aside>
     </div>
   </div>
@@ -289,17 +345,20 @@
 <script setup>
 // ── Script section remains UNCHANGED per user request ──
 // All logic, bindings, and function calls preserved exactly as original
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
+import SupervisorOverride from '@/components/SupervisorOverride.vue'
 import { useAuthStore }    from '@/stores/auth'
 import { useProductsStore } from '@/stores/products'
 import { useCartStore }    from '@/stores/cart'
 import { useMembersStore } from '@/stores/members'
+import { useShiftStore }   from '@/stores/shift'
 import { useRouter }       from 'vue-router'
 
 const authStore     = useAuthStore()
 const productsStore = useProductsStore()
 const cartStore     = useCartStore()
 const membersStore  = useMembersStore()
+const shiftStore    = useShiftStore()
 const router        = useRouter()
 
 const searchTerm    = ref('')
@@ -325,6 +384,33 @@ const setCategory = (name) => {
 
 const formatCurrency = (v) => Math.round(v || 0).toLocaleString('id-ID')
 
+// Cash input state
+const cashInputFormatted = ref('')
+const cashInputRaw = ref(0)
+const quickCashAmounts = [50000, 100000, 200000, 500000]
+
+const changeAmount = computed(() => {
+  if (!activeOrder.value || cashInputRaw.value <= 0) return 0
+  return Math.max(0, cashInputRaw.value - activeOrder.value.summary.total)
+})
+
+const formatCashInput = () => {
+  const digits = cashInputFormatted.value.replace(/\D/g, '')
+  cashInputRaw.value = parseInt(digits) || 0
+  cashInputFormatted.value = cashInputRaw.value > 0 ? cashInputRaw.value.toLocaleString('id-ID') : ''
+}
+
+const setQuickCash = (amt) => {
+  cashInputRaw.value = Math.ceil(amt)
+  cashInputFormatted.value = cashInputRaw.value.toLocaleString('id-ID')
+}
+
+// Reset cash input when order changes
+watch(activeOrder, () => {
+  cashInputFormatted.value = ''
+  cashInputRaw.value = 0
+})
+
 const productEmoji = (p) => {
   const cat = p.category?.name?.toLowerCase() || ''
   if (cat.includes('minum')) return '🥤'
@@ -332,8 +418,6 @@ const productEmoji = (p) => {
   if (cat.includes('snack')) return '🍟'
   return '📦'
 }
-
-const paymentIcon = (m) => ({ CASH: '💵', TRANSFER: '🏦', QRIS: '📱' }[m] || '💳')
 
 const handleAddProduct = (product) => {
   let orderId = cartStore.activeOrderId
@@ -364,20 +448,100 @@ const handleClearOrder = (orderId) => {
   if (confirm('Hapus pesanan ini?')) cartStore.clearOrder(orderId)
 }
 
+// ── Supervisor Override Logic (C1) ──
+const showOverrideModal = ref(false)
+const overrideActionLabel = ref('')
+
+const handleRequestAuth = (actionName) => {
+  overrideActionLabel.value = actionName
+  showOverrideModal.value = true
+}
+
+const promptDiscount = async () => {
+  if (!activeOrder.value) return
+  const input = prompt('Masukkan persentase diskon (1-100):')
+  if (!input) return
+  const pct = parseFloat(input)
+  if (isNaN(pct) || pct <= 0 || pct > 100) return
+
+  const res = await cartStore.applyDiscount(cartStore.activeOrderId, pct, true)
+  if (res.requiresAuth) {
+    handleRequestAuth(`memberikan diskon sebesar ${pct}%`)
+  } else if (!res.success) {
+    alert(res.message)
+  }
+}
+
+const promptPriceChange = async (itemIndex) => {
+  const item = activeOrder.value.items[itemIndex]
+  const input = prompt(`Masukkan harga baru untuk ${item.name}:\nHarga awal: Rp ${formatCurrency(item.price)}`)
+  if (!input) return
+  
+  const digits = input.replace(/\D/g, '')
+  const newPrice = parseInt(digits)
+  if (isNaN(newPrice) || newPrice < 0) return
+
+  const res = await cartStore.changePriceItem(cartStore.activeOrderId, itemIndex, newPrice, true)
+  if (res.requiresAuth) {
+    handleRequestAuth(`merubah harga ${item.name} menjadi Rp ${formatCurrency(newPrice)}`)
+  } else if (!res.success) {
+    alert(res.message)
+  }
+}
+
+const handleSupervisorApproved = async (supervisor) => {
+  const pending = cartStore.supervisorAuthPending
+  if (!pending) return
+
+  if (pending.action === 'discount') {
+    await cartStore.applyDiscount(cartStore.activeOrderId, pending.discountPercent, false)
+  } else if (pending.action === 'priceChange') {
+    await cartStore.changePriceItem(cartStore.activeOrderId, pending.itemIndex, pending.newPrice, false)
+  }
+  cartStore.supervisorAuthPending = null
+}
+
+const handleSupervisorDenied = () => {
+  alert('Otorisasi Supervisor Ditolak/Dibatalkan')
+  cartStore.supervisorAuthPending = null
+}
+
 const handleMemberSelect = (e) => {
   const id = e.target.value
   const member = id ? membersStore.getMemberById(id) : null
   cartStore.setMember(cartStore.activeOrderId, member)
 }
 
+// ── Inline Add Member (D6) ──
+const showNewMemberForm = ref(false)
+const newMemberForm = reactive({ name: '', phone: '' })
+const handleAddMember = async () => {
+  if (!newMemberForm.name.trim()) return
+  const result = await membersStore.add({ name: newMemberForm.name.trim(), phone: newMemberForm.phone.trim(), email: '' })
+  if (result.success && result.data) {
+    cartStore.setMember(cartStore.activeOrderId, result.data)
+    newMemberForm.name = ''
+    newMemberForm.phone = ''
+    showNewMemberForm.value = false
+  }
+}
+
 const handleSubmitOrder = async () => {
   if (!activeOrder.value?.items.length) return
+  if (cashInputRaw.value < activeOrder.value.summary.total) {
+    alert('Jumlah uang tunai belum mencukupi')
+    return
+  }
   submitting.value = true
   try {
     const result = await cartStore.submitOrder(cartStore.activeOrderId)
     if (result.success) {
-      successMsg.value = `Transaksi berhasil! ID: ${result.transactionId}`
-      setTimeout(() => { successMsg.value = '' }, 4000)
+      // Record transaction to shift
+      shiftStore.recordTransaction(result.transactionId, activeOrder.value.summary.total)
+      successMsg.value = `Transaksi berhasil! Kembalian: Rp ${formatCurrency(changeAmount.value)}`
+      setTimeout(() => { successMsg.value = '' }, 5000)
+      cashInputFormatted.value = ''
+      cashInputRaw.value = 0
       cartStore.clearOrder(cartStore.activeOrderId)
       if (!cartStore.orders.length) cartStore.createOrder()
     } else {
@@ -388,11 +552,15 @@ const handleSubmitOrder = async () => {
   }
 }
 
-const handleLogout = async () => {
-  if (confirm('Keluar dari sesi ini?')) {
-    await authStore.logout()
-    router.push('/login')
+const handleClosingShift = () => {
+  if (confirm('Tutup shift sekarang? Pastikan semua transaksi sudah selesai.')) {
+    router.push('/cashier/closing-shift')
   }
+}
+
+const handleSwitchRole = () => {
+  authStore.switchRole()
+  router.push('/role-select')
 }
 
 onMounted(async () => {
@@ -989,6 +1157,7 @@ onMounted(async () => {
   padding: 1.25rem;
   gap: 0;
   border-left: 1px solid var(--border-subtle);
+  height: 100%;
 }
 
 .checkout-header {
@@ -1045,18 +1214,29 @@ onMounted(async () => {
   flex-direction: column;
   flex: 1;
   gap: 1rem;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100,116,139,0.3) transparent;
 }
+.checkout-content::-webkit-scrollbar { width: 5px; }
+.checkout-content::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 10px; }
 
 /* Cart List */
 .cart-list {
-  flex: 1;
+  flex-shrink: 0;
+  min-height: 100px;
+  max-height: 280px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   padding-right: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100,116,139,0.3) transparent;
 }
+.cart-list::-webkit-scrollbar { width: 4px; }
+.cart-list::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 10px; }
 
 .cart-row {
   display: flex;
@@ -1095,34 +1275,15 @@ onMounted(async () => {
   margin: 0;
 }
 
-.row-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  flex-shrink: 0;
-}
-
-.qty-dec, .qty-inc {
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: var(--pos-transition);
-}
-
-.qty-dec:hover, .qty-inc:hover {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
-}
+.row-controls { display: flex; align-items: center; gap: 0.5rem; }
+.qty-dec, .qty-inc { width: 1.75rem; height: 1.75rem; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid var(--border-subtle); background: var(--bg-surface); color: var(--text-primary); cursor: pointer; font-size: 1rem; transition: all 0.2s; }
+.qty-dec:hover, .qty-inc:hover { border-color: #6366f1; color: #6366f1; }
+.qty-num { min-width: 1.5rem; text-align: center; font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
+.row-total { font-weight: 700; font-size: 0.9rem; margin-right: auto; color: var(--text-primary); }
+.row-edit-price { padding: 0.375rem; border: none; background: transparent; color: #94a3b8; cursor: pointer; transition: color 0.2s; display: flex; align-items: center; }
+.row-edit-price:hover { color: #8b5cf6; }
+.row-remove { padding: 0.375rem; border: none; background: transparent; color: #94a3b8; cursor: pointer; transition: color 0.2s; display: flex; align-items: center; }
+.row-remove:hover { color: #ef4444; }
 
 .qty-num {
   width: 1.75rem;
@@ -1161,9 +1322,12 @@ onMounted(async () => {
   color: var(--danger);
 }
 
-/* Payment Selector */
-.payment-selector {
+/* Cash Payment Section */
+.payment-section {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
 }
 
 .section-label {
@@ -1173,53 +1337,169 @@ onMounted(async () => {
   color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
-.payment-options {
+.cash-input-row {
+  position: relative;
   display: flex;
-  gap: 0.5rem;
-}
-
-.payment-option {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.625rem 0.5rem;
-  border-radius: var(--pos-radius-md);
+}
+
+.cash-prefix {
+  position: absolute;
+  left: 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+
+.cash-input {
+  width: 100%;
+  padding: 0.875rem 1rem 0.875rem 3rem;
   border: 1.5px solid var(--border-subtle);
+  border-radius: var(--pos-radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-align: right;
+  outline: none;
+  transition: var(--pos-transition);
+}
+
+.cash-input::placeholder {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.cash-input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--pos-focus-ring);
+}
+
+.quick-cash {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.quick-cash-btn {
+  flex: 1;
+  min-width: fit-content;
+  padding: 0.375rem 0.625rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
   background: var(--bg-base);
   color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
   cursor: pointer;
   transition: var(--pos-transition);
 }
 
-.payment-option:hover {
+.quick-cash-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-.payment-option.is-selected {
   background: var(--accent-soft);
-  border-color: var(--accent);
+}
+
+.quick-cash-btn.exact {
+  background: var(--accent-soft);
   color: var(--accent);
+  border-color: var(--accent);
 }
 
-.payment-icon {
-  font-size: 1.25rem;
-}
-
-.payment-name {
-  font-size: 0.7rem;
+.change-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: var(--pos-radius-md);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(20, 184, 166, 0.1));
+  border: 1.5px solid rgba(16, 185, 129, 0.3);
+  font-size: 0.875rem;
   font-weight: 600;
+  color: #10b981;
+}
+
+.change-value {
+  font-size: 1.125rem;
+  font-weight: 800;
+}
+
+.cash-warning {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--pos-radius-sm);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #d97706;
+}
+
+/* Close Shift Button */
+.btn-close-shift {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.875rem;
+  border-radius: 10px;
+  border: none;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--pos-transition);
+}
+
+.btn-close-shift:hover {
+  background: var(--danger);
+  color: white;
+}
+
+/* Member Selector */
+.btn-switch-role {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 8px;
+  border: 1.5px solid rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.08);
+  color: #6366f1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--pos-transition);
+}
+.btn-switch-role:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
 }
 
 /* Member Selector */
 .member-selector {
   flex-shrink: 0;
 }
+
+.btn-add-inline { display: block; width: 100%; margin-top: 0.375rem; padding: 0.375rem; border: 1.5px dashed rgba(99,102,241,0.3); border-radius: 8px; background: transparent; color: #6366f1; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.25s; }
+.btn-add-inline:hover { background: rgba(99,102,241,0.08); }
+.inline-member-form { display: flex; flex-direction: column; gap: 0.375rem; margin-top: 0.5rem; }
+.input-inline { padding: 0.5rem 0.625rem; border: 1.5px solid var(--border-subtle); border-radius: var(--pos-radius-md); background: var(--bg-surface); color: var(--text-primary); font-size: 0.8rem; outline: none; transition: all 0.25s; }
+.input-inline:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+.input-inline.full { width: 100%; }
+.btn-save-inline { padding: 0.4rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+.btn-save-inline:disabled { opacity: 0.4; cursor: not-allowed; }
+.customer-name-input { flex-shrink: 0; margin-top: 0.25rem; }
+
+.order-discount-action { flex-shrink: 0; margin-bottom: 0.75rem; display: flex; justify-content: flex-end; }
+.btn-discount { display: inline-flex; align-items: center; gap: 0.375rem; background: rgba(99,102,241,0.08); color: #6366f1; border: 1.5px solid rgba(99,102,241,0.2); padding: 0.5rem 0.875rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.3s; }
+.btn-discount:hover { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.4); }
+.disc-icon { font-size: 0.9rem; font-weight: 800; background: #6366f1; color: white; border-radius: 50%; width: 1.25rem; height: 1.25rem; display: flex; align-items: center; justify-content: center; padding-right: 1px; }
 
 .select-control {
   width: 100%;

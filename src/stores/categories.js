@@ -5,10 +5,10 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const MOCK_CATEGORIES = [
-    { id: 'cat-1', name: 'Makanan', description: 'Produk makanan & sajian utama', createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'cat-2', name: 'Minuman', description: 'Berbagai pilihan minuman segar', createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'cat-3', name: 'Snack', description: 'Camilan dan makanan ringan', createdAt: '2024-01-02T00:00:00.000Z' },
-    { id: 'cat-4', name: 'Dessert', description: 'Pencuci mulut dan es krim', createdAt: '2024-01-03T00:00:00.000Z' },
+    { id: 'cat-1', name: 'Makanan', description: 'Produk makanan & sajian utama', hasExpiration: true, createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'cat-2', name: 'Minuman', description: 'Berbagai pilihan minuman segar', hasExpiration: true, createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'cat-3', name: 'Snack', description: 'Camilan dan makanan ringan', hasExpiration: false, createdAt: '2024-01-02T00:00:00.000Z' },
+    { id: 'cat-4', name: 'Dessert', description: 'Pencuci mulut dan es krim', hasExpiration: true, createdAt: '2024-01-03T00:00:00.000Z' },
 ]
 // ─────────────────────────────────────────────────────────────────────────────
 

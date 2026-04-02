@@ -3,29 +3,44 @@ import { ref, computed } from 'vue'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Mock Data (roles[] array format, synced with auth.js) ────────────────────
 const MOCK_USERS = [
-    { id: 'mock-user-1', name: 'Administrator', username: 'admin', role: 'ADMIN', email: 'admin@nextore.id', isActive: true, createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'mock-user-2', name: 'Supervisor Utama', username: 'supervisor', role: 'SUPERVISOR', email: 'supervisor@nextore.id', isActive: true, createdAt: '2024-01-05T00:00:00.000Z' },
-    { id: 'mock-user-3', name: 'Kasir 1', username: 'kasir', role: 'CASHIER', email: 'kasir1@nextore.id', isActive: true, createdAt: '2024-01-10T00:00:00.000Z' },
-    { id: 'mock-user-4', name: 'Kasir 2', username: 'kasir2', role: 'CASHIER', email: 'kasir2@nextore.id', isActive: false, createdAt: '2024-01-15T00:00:00.000Z' },
+    { id: 'mock-user-5', name: 'Super Admin', username: 'superuser', roles: ['SUPERUSER', 'ADMIN', 'CASHIER'], email: 'superuser@nextore.id', isActive: true, createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'mock-user-1', name: 'Administrator', username: 'admin', roles: ['ADMIN', 'CASHIER'], email: 'admin@nextore.id', isActive: true, createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'mock-user-2', name: 'Supervisor Utama', username: 'supervisor', roles: ['SUPERVISOR', 'CASHIER'], email: 'supervisor@nextore.id', isActive: true, createdAt: '2024-01-05T00:00:00.000Z' },
+    { id: 'mock-user-3', name: 'Kasir 1', username: 'kasir', roles: ['CASHIER'], email: 'kasir1@nextore.id', isActive: true, createdAt: '2024-01-10T00:00:00.000Z' },
+    { id: 'mock-user-4', name: 'Kasir 2', username: 'kasir2', roles: ['CASHIER'], email: 'kasir2@nextore.id', isActive: false, createdAt: '2024-01-15T00:00:00.000Z' },
 ]
 // ─────────────────────────────────────────────────────────────────────────────
 
-const roleLabel = { ADMIN: 'Admin', SUPERVISOR: 'Supervisor', CASHIER: 'Kasir' }
+const ROLE_OPTIONS = [
+    { value: 'SUPERUSER', label: 'Superuser' },
+    { value: 'ADMIN', label: 'Admin' },
+    { value: 'SUPERVISOR', label: 'Supervisor' },
+    { value: 'CASHIER', label: 'Kasir' },
+]
+
+const roleLabel = {
+    SUPERUSER: 'Superuser',
+    ADMIN: 'Admin',
+    SUPERVISOR: 'Supervisor',
+    CASHIER: 'Kasir',
+}
 
 export const useUsersStore = defineStore('users', () => {
     const users = ref([])
     const loading = ref(false)
     const error = ref(null)
-    let nextMockId = 5
+    let nextMockId = 6
 
     const searchTerm = ref('')
     const roleFilter = ref('')
 
     const filtered = computed(() => {
         let list = users.value
-        if (roleFilter.value) list = list.filter(u => u.role === roleFilter.value)
+        if (roleFilter.value) {
+            list = list.filter(u => (u.roles || [u.role]).includes(roleFilter.value))
+        }
         if (searchTerm.value) {
             const q = searchTerm.value.toLowerCase()
             list = list.filter(u =>
@@ -38,6 +53,7 @@ export const useUsersStore = defineStore('users', () => {
     })
 
     const getRoleLabel = (role) => roleLabel[role] || role
+    const getRoleLabels = (roles) => (roles || []).map(r => getRoleLabel(r)).join(', ')
 
     // ── fetchAll ───────────────────────────────────────────────────────────────
     const fetchAll = async () => {
@@ -132,5 +148,9 @@ export const useUsersStore = defineStore('users', () => {
         } finally { loading.value = false }
     }
 
-    return { users, loading, error, searchTerm, roleFilter, filtered, getRoleLabel, fetchAll, add, update, remove }
+    return {
+        users, loading, error, searchTerm, roleFilter, filtered,
+        getRoleLabel, getRoleLabels, ROLE_OPTIONS,
+        fetchAll, add, update, remove,
+    }
 })

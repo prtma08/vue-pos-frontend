@@ -31,17 +31,11 @@
 
       <table v-else class="data-table">
         <thead>
-          <tr>
-            <th>#</th>
-            <th>Nama Kategori</th>
-            <th>Deskripsi</th>
-            <th>Dibuat</th>
-            <th>Aksi</th>
-          </tr>
+          <tr><th>#</th><th>Nama Kategori</th><th>Deskripsi</th><th>Kadaluarsa</th><th>Dibuat</th><th>Aksi</th></tr>
         </thead>
         <tbody>
           <tr v-if="store.filtered.length === 0">
-            <td colspan="5" class="empty-row">Tidak ada kategori ditemukan.</td>
+            <td colspan="6" class="empty-row">Tidak ada kategori ditemukan.</td>
           </tr>
           <tr v-for="(cat, i) in store.filtered" :key="cat.id" class="table-row">
             <td class="col-idx">{{ i + 1 }}</td>
@@ -52,6 +46,7 @@
               </div>
             </td>
             <td class="col-desc">{{ cat.description || '—' }}</td>
+            <td><span class="expiry-badge" :class="cat.hasExpiration ? 'yes' : 'no'">{{ cat.hasExpiration ? '✅ Ya' : '—' }}</span></td>
             <td class="col-date">{{ formatDate(cat.createdAt) }}</td>
             <td class="col-actions">
               <button class="action-btn edit" @click="openModal(cat)" title="Edit">
@@ -83,6 +78,12 @@
               <div class="form-group">
                 <label class="form-label">Deskripsi</label>
                 <textarea v-model="form.description" class="input-field" rows="3" placeholder="Deskripsi singkat kategori..."></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-check">
+                  <input type="checkbox" v-model="form.hasExpiration" class="check-input"/>
+                  <span class="check-label">Produk kategori ini memiliki tanggal kadaluarsa</span>
+                </label>
               </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
@@ -133,7 +134,7 @@ const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
-const form = reactive({ name: '', description: '' })
+const form = reactive({ name: '', description: '', hasExpiration: false })
 
 onMounted(() => store.fetchAll())
 
@@ -147,6 +148,7 @@ const openModal = (cat = null) => {
   formError.value = ''
   form.name = cat?.name || ''
   form.description = cat?.description || ''
+  form.hasExpiration = cat?.hasExpiration || false
   showModal.value = true
 }
 
@@ -154,7 +156,7 @@ const closeModal = () => { showModal.value = false; editTarget.value = null }
 
 const handleSubmit = async () => {
   formError.value = ''
-  const payload = { name: form.name.trim(), description: form.description.trim() }
+  const payload = { name: form.name.trim(), description: form.description.trim(), hasExpiration: form.hasExpiration }
   const result = editTarget.value
     ? await store.update(editTarget.value.id, payload)
     : await store.add(payload)
@@ -1118,4 +1120,17 @@ const handleDelete = async () => {
     0 0 0 3px rgba(10, 14, 23, 0.92),
     0 0 0 5.5px rgba(129, 140, 248, 0.48) !important;
 }
+
+/* Expiry Badge */
+.expiry-badge { font-size: 0.8rem; font-weight: 500; }
+.expiry-badge.yes { color: #10b981; }
+.expiry-badge.no { color: #94a3b8; }
+
+/* Checkbox */
+.form-check { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem 1rem; border: 2px solid #e2e8f0; border-radius: 12px; transition: all 0.25s; }
+.form-check:hover { border-color: #6366f1; background: rgba(99,102,241,0.04); }
+.module-page[data-theme="dark"] .form-check { border-color: #334155; }
+.check-input { width: 1.25rem; height: 1.25rem; accent-color: #6366f1; cursor: pointer; flex-shrink: 0; }
+.check-label { font-size: 0.875rem; font-weight: 500; color: #475569; }
+.module-page[data-theme="dark"] .check-label { color: #cbd5e1; }
 </style>

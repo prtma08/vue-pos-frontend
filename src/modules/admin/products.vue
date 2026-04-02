@@ -119,6 +119,11 @@
               </span>
             </td>
             <td class="col-actions">
+              <button class="action-btn history" @click="openPriceHistory(product)" title="Riwayat Harga">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </button>
               <button class="action-btn edit" @click="openModal(product)" title="Edit">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -255,6 +260,18 @@
                   <span class="preview-value">Rp {{ fmt(form.price - form.hpp) }} <span class="preview-percent">({{ profitPct }}%)</span></span>
                 </div>
               </div>
+
+              <!-- Loss Alert -->
+              <div v-if="form.price && form.hpp && form.price < form.hpp" class="loss-alert">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <div class="loss-alert-text">
+                  <strong>Peringatan Rugi!</strong>
+                  <span>Harga jual (Rp {{ fmt(form.price) }}) lebih rendah dari HPP (Rp {{ fmt(form.hpp) }}). Anda akan mengalami kerugian Rp {{ fmt(form.hpp - form.price) }} per unit.</span>
+                </div>
+              </div>
               
               <div v-if="formError" class="form-error">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -318,6 +335,40 @@
         </div>
       </transition>
     </Teleport>
+
+    <!-- ── Modal: Price History ──────────────────────────────────────────── -->
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div v-if="priceHistoryTarget" class="modal-overlay" @click.self="priceHistoryTarget = null">
+          <div class="modal-box">
+            <div class="modal-header">
+              <div class="header-text">
+                <h2 class="modal-title">Riwayat Harga</h2>
+                <p class="modal-subtitle">{{ priceHistoryTarget.name }}</p>
+              </div>
+              <button class="modal-close" @click="priceHistoryTarget = null">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div class="history-list">
+              <div v-if="priceHistoryList.length === 0" class="history-empty">Belum ada riwayat perubahan harga.</div>
+              <div v-for="h in priceHistoryList" :key="h.id" class="history-item" :class="{ active: h.is_active }">
+                <div class="history-price">
+                  <span class="h-price">Rp {{ fmt(h.price) }}</span>
+                  <span v-if="h.is_active" class="h-active-badge">Aktif</span>
+                </div>
+                <div class="history-meta">
+                  <span v-if="h.previousPrice" class="h-prev">sebelumnya: Rp {{ fmt(h.previousPrice) }}</span>
+                  <span class="h-date">{{ fmtDate(h.effectiveDate) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -333,6 +384,8 @@ const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
+const priceHistoryTarget = ref(null)
+const priceHistoryList = ref([])
 
 const form = reactive({ name: '', sku: '', categoryId: '', price: null, hpp: null, stock: null, lowStockThreshold: 10 })
 
@@ -393,6 +446,16 @@ const getProductColor = (name) => {
   const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#10b981', '#14b8a6', '#06b6d4', '#84cc16']
   const index = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % colors.length
   return colors[index]
+}
+
+const fmtDate = (iso) => {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const openPriceHistory = (product) => {
+  priceHistoryTarget.value = product
+  priceHistoryList.value = store.getPriceHistory(product.id)
 }
 </script>
 
@@ -1583,4 +1646,26 @@ const getProductColor = (name) => {
 .table-row:nth-child(3) { animation-delay: 0.09s; }
 .table-row:nth-child(4) { animation-delay: 0.12s; }
 .table-row:nth-child(5) { animation-delay: 0.15s; }
+
+/* Loss Alert */
+.loss-alert { display: flex; gap: 0.75rem; padding: 1rem 1.25rem; background: rgba(239,68,68,0.08); border: 1.5px solid rgba(239,68,68,0.2); border-radius: var(--radius-md); color: #dc2626; margin-top: 0.5rem; }
+.loss-alert svg { flex-shrink: 0; margin-top: 2px; }
+.loss-alert-text { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.825rem; line-height: 1.5; }
+.loss-alert-text strong { font-weight: 700; }
+
+/* Price History Modal */
+.history-list { padding: 1.5rem 2rem 2rem; max-height: 400px; overflow-y: auto; }
+.history-empty { text-align: center; color: var(--text-tertiary); padding: 2rem; font-size: 0.875rem; }
+.history-item { display: flex; justify-content: space-between; align-items: center; padding: 0.875rem 1rem; border: 1.5px solid var(--border-light); border-radius: var(--radius-md); margin-bottom: 0.75rem; transition: var(--transition); }
+.history-item.active { border-color: var(--accent); background: var(--accent-soft); }
+.history-price { display: flex; align-items: center; gap: 0.625rem; }
+.h-price { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+.h-active-badge { font-size: 0.65rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px; background: var(--accent); color: #fff; text-transform: uppercase; letter-spacing: 0.04em; }
+.history-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }
+.h-prev { font-size: 0.75rem; color: var(--text-tertiary); }
+.h-date { font-size: 0.72rem; color: var(--text-tertiary); }
+
+/* Action Button: History */
+.action-btn.history { color: #6366f1; }
+.action-btn.history:hover { background: rgba(99,102,241,0.12); }
 </style>

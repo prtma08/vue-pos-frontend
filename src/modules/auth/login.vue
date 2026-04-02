@@ -103,7 +103,7 @@
       <!-- Mock hint -->
       <p v-if="isMock" class="mock-hint">
         <span class="badge badge-accent">Mock Mode</span>
-        admin / admin123 &nbsp;·&nbsp; kasir / kasir123
+        superuser / super123 &nbsp;·&nbsp; admin / admin123 &nbsp;·&nbsp; kasir / kasir123
       </p>
     </div>
   </div>
@@ -139,8 +139,19 @@ const handleLogin = async () => {
     const result = await authStore.login(username.value, password.value)
 
     if (result.success) {
-      const roleRedirects = { admin: '/admin', supervisor: '/dashboard', kasir: '/cashier' }
-      router.push(roleRedirects[authStore.userRole] || '/dashboard')
+      // Multi-role users → role selector
+      if (authStore.needsRoleSelection) {
+        router.push('/role-select')
+        return
+      }
+
+      // Single-role users → direct redirect
+      if (authStore.activeRole === 'kasir') {
+        router.push('/cashier/device-select')
+      } else {
+        const roleRedirects = { superuser: '/admin/dashboard', admin: '/admin', supervisor: '/admin/transactions', kasir: '/cashier' }
+        router.push(roleRedirects[authStore.activeRole] || '/admin')
+      }
     } else {
       error.value = result.message
     }

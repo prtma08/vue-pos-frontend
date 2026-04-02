@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import apiClient from '@/api/client'
 import { useAuthStore } from './auth'
+import { useProductsStore } from './products'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
@@ -114,6 +115,7 @@ export const useCartStore = defineStore('cart', () => {
     const newOrder = {
       id: orderId,
       status: 'pending',
+      customerName: '', // D7: nama customer untuk pending order
       paymentMethod: 'CASH', // Default; selectable by kasir: CASH | TRANSFER | QRIS
       createdAt: new Date().toISOString(),
       lastModified: new Date().toISOString(),
@@ -155,12 +157,16 @@ export const useCartStore = defineStore('cart', () => {
       return { success: false, message: 'Order not found' }
     }
 
+    // Detect bundle/package products
+    const isBundle = productData.type === 'BUNDLE' && Array.isArray(productData.bundleItems)
+
     // FIX BUG-1: Merge duplicate products instead of creating new rows
     const existingIndex = order.items.findIndex(i => i.productId === productData.id)
     if (existingIndex !== -1) {
       const existing = order.items[existingIndex]
       existing.quantity += 1
       existing.subtotal = Math.round(existing.price * existing.quantity * 100) / 100
+      useProductsStore().reserveStock(productData.id, 1)
     } else {
       // FIX BUG-2: No per-item discount field — use order-level discountPercent only
       order.items.push({
@@ -170,7 +176,11 @@ export const useCartStore = defineStore('cart', () => {
         price: productData.sellingPrice,
         hpp: productData.hpp || 0,
         subtotal: productData.sellingPrice,
+        // Bundle metadata
+        isBundle,
+        bundleItems: isBundle ? productData.bundleItems : undefined,
       })
+      useProductsStore().reserveStock(productData.id, 1)
     }
 
     order.lastModified = new Date().toISOString()
@@ -186,6 +196,8 @@ export const useCartStore = defineStore('cart', () => {
       return { success: false, message: 'Invalid order or item' }
     }
 
+    const item = order.items[itemIndex]
+    useProductsStore().releaseReservedStock(item.productId, item.quantity)
     order.items.splice(itemIndex, 1)
     order.lastModified = new Date().toISOString()
     updateOrderSummary(orderId)
@@ -205,6 +217,10 @@ export const useCartStore = defineStore('cart', () => {
     }
 
     const item = order.items[itemIndex]
+    const diff = quantity - item.quantity
+    if (diff > 0) useProductsStore().reserveStock(item.productId, diff)
+    else if (diff < 0) useProductsStore().releaseReservedStock(item.productId, Math.abs(diff))
+
     item.quantity = quantity
     // FIX BUG-2: No per-item discount — subtotal is price * quantity
     item.subtotal = Math.round(item.price * quantity * 100) / 100
@@ -357,6 +373,26 @@ export const useCartStore = defineStore('cart', () => {
     return { success: true }
   }
 
+  // ── Deduct stock for all items (handles bundles) ──────────────────────────
+  const deductOrderStock = (order) => {
+    const productsStore = useProductsStore()
+    for (const item of order.items) {
+      productsStore.releaseReservedStock(item.productId, item.quantity)
+      if (item.isBundle && item.bundleItems) {
+        // Bundle: deduct each component product's stock
+        for (const component of item.bundleItems) {
+          productsStore.deductStock(component.productId, component.qty * item.quantity)
+        }
+      } else {
+        // Regular product: deduct its own stock
+        productsStore.deductStock(item.productId, item.quantity)
+      }
+    }
+    if (import.meta.env.DEV) {
+      console.log('[Cart] Stock deducted for order:', order.id)
+    }
+  }
+
   const submitOrder = async (orderId) => {
     const order = orders.value.find(o => o.id === orderId)
     if (!order) {
@@ -372,12 +408,17 @@ export const useCartStore = defineStore('cart', () => {
         items: order.items.map(item => ({
           productId: item.productId,
           qty: item.quantity,
+          isBundle: item.isBundle || false,
+          bundleItems: item.bundleItems || undefined,
         })),
       }
       console.log('[Mock] POST /transactions payload:', JSON.stringify(payload, null, 2))
 
       // Simulate 1 second network delay
       await new Promise(r => setTimeout(r, 1000))
+
+      // Deduct stock (bundle components + regular items)
+      deductOrderStock(order)
 
       const mockTransactionId = `mock-txn-${Date.now()}`
       order.status = 'submitted'
@@ -400,8 +441,13 @@ export const useCartStore = defineStore('cart', () => {
         items: order.items.map(item => ({
           productId: item.productId,
           qty: item.quantity,  // Backend uses 'qty' not 'quantity'
+          isBundle: item.isBundle || false,
+          bundleItems: item.bundleItems || undefined,
         })),
       })
+
+      // Deduct stock locally after successful API response
+      deductOrderStock(order)
 
       order.status = 'submitted'
       order.metadata.submittedAt = new Date().toISOString()
@@ -420,6 +466,10 @@ export const useCartStore = defineStore('cart', () => {
       return { success: false, message: 'Order not found' }
     }
 
+    const orderToClear = orders.value[index]
+    orderToClear.items.forEach(item => {
+      useProductsStore().releaseReservedStock(item.productId, item.quantity)
+    })
     orders.value.splice(index, 1)
 
     if (activeOrderId.value === orderId) {
@@ -431,6 +481,11 @@ export const useCartStore = defineStore('cart', () => {
   }
 
   const clearAllOrders = () => {
+    orders.value.forEach(order => {
+      order.items.forEach(item => {
+        useProductsStore().releaseReservedStock(item.productId, item.quantity)
+      })
+    })
     orders.value = []
     activeOrderId.value = null
     supervisorAuthPending.value = null

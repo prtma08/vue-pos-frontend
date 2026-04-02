@@ -20,6 +20,7 @@
       </div>
       <div class="filter-row">
         <button class="filter-pill" :class="{ active: !store.roleFilter }" @click="store.roleFilter = ''">Semua</button>
+        <button class="filter-pill" :class="{ active: store.roleFilter === 'SUPERUSER' }" @click="store.roleFilter = 'SUPERUSER'">Superuser</button>
         <button class="filter-pill" :class="{ active: store.roleFilter === 'ADMIN' }" @click="store.roleFilter = 'ADMIN'">Admin</button>
         <button class="filter-pill" :class="{ active: store.roleFilter === 'SUPERVISOR' }" @click="store.roleFilter = 'SUPERVISOR'">Supervisor</button>
         <button class="filter-pill" :class="{ active: store.roleFilter === 'CASHIER' }" @click="store.roleFilter = 'CASHIER'">Kasir</button>
@@ -51,14 +52,18 @@
             <td class="col-idx">{{ i + 1 }}</td>
             <td>
               <div class="cell-user">
-                <div class="user-avatar" :style="{ background: avatarColor(u.role) }">{{ u.name[0] }}</div>
+                <div class="user-avatar" :style="{ background: avatarColor((u.roles || [])[0]) }">{{ u.name[0] }}</div>
                 <div>
                   <div class="user-name">{{ u.name }}</div>
                   <div class="user-username">@{{ u.username }}</div>
                 </div>
               </div>
             </td>
-            <td><span class="badge" :class="roleBadgeClass(u.role)">{{ store.getRoleLabel(u.role) }}</span></td>
+            <td>
+              <div class="roles-wrap">
+                <span v-for="r in (u.roles || [])" :key="r" class="badge" :class="roleBadgeClass(r)">{{ store.getRoleLabel(r) }}</span>
+              </div>
+            </td>
             <td class="col-email">{{ u.email || '—' }}</td>
             <td>
               <span class="status-dot" :class="u.isActive ? 'active' : 'inactive'">
@@ -99,12 +104,13 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Role <span class="required">*</span></label>
-                <select v-model="form.role" class="input-field" required>
-                  <option value="">-- Pilih Role --</option>
-                  <option value="ADMIN">Admin</option>
-                  <option value="SUPERVISOR">Supervisor</option>
-                  <option value="CASHIER">Kasir</option>
-                </select>
+                <div class="role-checkboxes">
+                  <label v-for="opt in store.ROLE_OPTIONS" :key="opt.value" class="role-checkbox">
+                    <input type="checkbox" :value="opt.value" v-model="form.roles" />
+                    <span class="cb-label">{{ opt.label }}</span>
+                  </label>
+                </div>
+                <p v-if="form.roles.length === 0" class="form-hint">Pilih minimal 1 role</p>
               </div>
               <div class="form-group">
                 <label class="form-label">
@@ -161,7 +167,7 @@ const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
-const form = reactive({ name: '', username: '', email: '', role: '', password: '' })
+const form = reactive({ name: '', username: '', email: '', roles: [], password: '' })
 
 onMounted(() => store.fetchAll())
 
@@ -171,23 +177,24 @@ const formatDate = (iso) => {
 }
 
 const avatarColor = (role) => {
-  const map = { ADMIN: 'linear-gradient(135deg, #6366f1, #8b5cf6)', SUPERVISOR: 'linear-gradient(135deg, #f59e0b, #d97706)', CASHIER: 'linear-gradient(135deg, #10b981, #059669)' }
+  const map = { SUPERUSER: 'linear-gradient(135deg, #ec4899, #f43f5e)', ADMIN: 'linear-gradient(135deg, #6366f1, #8b5cf6)', SUPERVISOR: 'linear-gradient(135deg, #f59e0b, #d97706)', CASHIER: 'linear-gradient(135deg, #10b981, #059669)' }
   return map[role] || 'var(--accent)'
 }
 
-const roleBadgeClass = (role) => ({ ADMIN: 'badge-role-admin', SUPERVISOR: 'badge-role-supervisor', CASHIER: 'badge-role-cashier' }[role] || 'badge-accent')
+const roleBadgeClass = (role) => ({ SUPERUSER: 'badge-role-superuser', ADMIN: 'badge-role-admin', SUPERVISOR: 'badge-role-supervisor', CASHIER: 'badge-role-cashier' }[role] || 'badge-accent')
 
 const openModal = (u = null) => {
   editTarget.value = u
   formError.value = ''
-  Object.assign(form, { name: u?.name || '', username: u?.username || '', email: u?.email || '', role: u?.role || '', password: '' })
+  Object.assign(form, { name: u?.name || '', username: u?.username || '', email: u?.email || '', roles: u?.roles ? [...u.roles] : [], password: '' })
   showModal.value = true
 }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
 
 const handleSubmit = async () => {
   formError.value = ''
-  const payload = { name: form.name.trim(), username: form.username.trim(), email: form.email.trim() || null, role: form.role }
+  if (form.roles.length === 0) { formError.value = 'Pilih minimal 1 role'; return }
+  const payload = { name: form.name.trim(), username: form.username.trim(), email: form.email.trim() || null, roles: [...form.roles] }
   if (form.password) payload.password = form.password
   const result = editTarget.value
     ? await store.update(editTarget.value.id, payload)
@@ -595,6 +602,80 @@ const handleDelete = async () => {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%);
   color: #059669;
   border: 1.5px solid rgba(5, 150, 105, 0.3);
+}
+
+.badge-role-superuser {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.15) 0%, rgba(244, 63, 94, 0.15) 100%);
+  color: #ec4899;
+  border: 1.5px solid rgba(236, 72, 153, 0.3);
+}
+
+.roles-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+/* ── Role Checkboxes ── */
+.role-checkboxes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.role-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #ffffff;
+}
+
+.module-page[data-theme="dark"] .role-checkbox {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+.role-checkbox:hover {
+  border-color: #6366f1;
+}
+
+.role-checkbox:has(input:checked) {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.module-page[data-theme="dark"] .role-checkbox:has(input:checked) {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: #818cf8;
+}
+
+.role-checkbox input[type="checkbox"] {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+.cb-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.module-page[data-theme="dark"] .cb-label {
+  color: #cbd5e1;
+}
+
+.form-hint {
+  font-size: 0.78rem;
+  color: #f59e0b;
+  margin: 0;
+  font-weight: 500;
 }
 
 /* ── Status Dot ────────────────────────────────────────────────────── */

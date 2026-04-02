@@ -58,7 +58,7 @@
             </span>
             <span class="nav-label-text">Member</span>
           </router-link>
-          <router-link v-if="authStore.isAdmin" to="/admin/accounts" class="nav-item" active-class="is-active">
+          <router-link v-if="authStore.isAdmin || authStore.isSuperuser" to="/admin/accounts" class="nav-item" active-class="is-active">
             <span class="nav-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -95,6 +95,60 @@
             <span class="nav-label-text">Laporan Laba</span>
           </router-link>
         </div>
+
+        <!-- Operasional -->
+        <div class="nav-group">
+          <span class="nav-section-label">Operasional</span>
+          <router-link to="/admin/discounts" class="nav-item" active-class="is-active">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+              </svg>
+            </span>
+            <span class="nav-label-text">Diskon</span>
+          </router-link>
+          <router-link to="/admin/pos-devices" class="nav-item" active-class="is-active">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+            </span>
+            <span class="nav-label-text">POS Terminal</span>
+          </router-link>
+          <router-link to="/admin/purchase" class="nav-item" active-class="is-active">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>
+            </span>
+            <span class="nav-label-text">Purchase Barang</span>
+          </router-link>
+          <router-link to="/admin/bundles" class="nav-item" active-class="is-active">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+              </svg>
+            </span>
+            <span class="nav-label-text">Paket Bundle</span>
+          </router-link>
+          <router-link to="/admin/sales-report" class="nav-item" active-class="is-active">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>
+              </svg>
+            </span>
+            <span class="nav-label-text">Laporan Penjualan</span>
+          </router-link>
+          <router-link to="/admin/expired" class="nav-item" active-class="is-active">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </span>
+            <span class="nav-label-text">Laporan Expired</span>
+          </router-link>
+        </div>
       </nav>
 
       <!-- Footer -->
@@ -109,6 +163,12 @@
         </div>
         <!-- Controls -->
         <div class="footer-controls">
+          <button v-if="authStore.roles?.length > 1" class="ctrl-btn ctrl-btn-switch" @click="handleSwitchRole" title="Ganti Role">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/>
+              <polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
+            </svg>
+          </button>
           <button class="ctrl-btn" @click="toggleTheme" :title="theme === 'light' ? 'Mode Gelap' : 'Mode Terang'">
             <svg v-if="theme === 'light'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
@@ -157,6 +217,10 @@
             </svg>
             <span>{{ todayStr }}</span>
           </div>
+          <button v-if="authStore.roles?.length > 1" class="topbar-switch-btn" @click="handleSwitchRole" title="Ganti Role">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+            Switch Role
+          </button>
           <div class="topbar-avatar" :title="authStore.user?.name">
             {{ (authStore.user?.name || 'A')[0].toUpperCase() }}
           </div>
@@ -193,9 +257,14 @@ const sidebarCollapsed = ref(false)
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 const roleLabel = computed(() => {
-  const map = { admin: 'Admin', supervisor: 'Supervisor', kasir: 'Kasir' }
+  const map = { superuser: 'Superuser', admin: 'Admin', supervisor: 'Supervisor', kasir: 'Kasir' }
   return map[authStore.userRole] || authStore.userRole || '—'
 })
+
+const handleSwitchRole = () => {
+  authStore.switchRole(null) // clear active role → goes to role selector
+  router.push('/role-select')
+}
 
 const handleLogout = async () => {
   await authStore.logout()
@@ -212,6 +281,12 @@ const pageTitleMap = {
   AdminTransactions: 'Riwayat Transaksi',
   AdminFinance: 'Laporan Laba',
   AdminReconciliation: 'Rekonsiliasi',
+  AdminDiscounts: 'Manajemen Diskon',
+  AdminPosDevices: 'POS Terminal',
+  AdminPurchase: 'Purchase Barang',
+  AdminBundles: 'Manajemen Paket',
+  AdminSalesReport: 'Laporan Penjualan',
+  AdminExpired: 'Laporan Expired',
 }
 
 const currentPageTitle = computed(() => {
@@ -454,6 +529,12 @@ onMounted(async () => {
   border-color: rgba(239,68,68,0.3);
 }
 
+.ctrl-btn-switch:hover {
+  background: rgba(99,102,241,0.2);
+  color: #a5b4fc;
+  border-color: rgba(99,102,241,0.3);
+}
+
 /* ─── Main Area ─────────────────────────────────────────────────────────── */
 .main-area {
   flex: 1;
@@ -519,6 +600,16 @@ onMounted(async () => {
   opacity: 0.6;
   font-weight: 500;
 }
+
+.topbar-switch-btn {
+  display: flex; align-items: center; gap: 0.375rem;
+  padding: 0.375rem 0.75rem; border-radius: 8px;
+  border: 1.5px solid rgba(99,102,241,0.2);
+  background: rgba(99,102,241,0.08); color: #6366f1;
+  font-size: 0.72rem; font-weight: 600; cursor: pointer;
+  transition: all 0.25s;
+}
+.topbar-switch-btn:hover { background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.35); transform: translateY(-1px); }
 
 .topbar-avatar {
   width: 2rem;
