@@ -29,6 +29,10 @@
           <span class="harga-paket">Rp {{ formatCurrency(b.bundlePrice) }}</span>
           <span class="saving-badge">Hemat {{ Math.round((1 - b.bundlePrice / b.totalOriginal) * 100) }}%</span>
         </div>
+        <div class="bundle-stock" :class="(b.bundleStock ?? 0) <= 5 ? 'stock-low' : 'stock-ok'">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          Stok: {{ b.bundleStock ?? 0 }}
+        </div>
       </div>
     </div>
 
@@ -48,10 +52,19 @@
               <div class="form-group">
                 <label class="form-label">Komponen Produk</label>
                 <div v-for="(comp, i) in form.items" :key="i" class="comp-row">
-                  <select v-model="comp.productId" class="input-field comp-select" @change="onComponentSelect(i)">
-                    <option value="">-- Pilih produk --</option>
-                    <option v-for="p in productsStore.products" :key="p.id" :value="p.id">{{ p.name }} (Rp {{ formatCurrency(p.sellingPrice) }})</option>
-                  </select>
+                  <div class="comp-combobox-wrap">
+                    <AppCombobox
+                      :model-value="comp.productId"
+                      :options="productsStore.products"
+                      option-key="id"
+                      option-label="name"
+                      :option-sub-label="'sku'"
+                      placeholder="-- Pilih produk --"
+                      search-placeholder="Cari produk..."
+                      :clearable="true"
+                      @update:model-value="(val) => { comp.productId = val; onComponentSelectById(i, val) }"
+                    />
+                  </div>
                   <input v-model.number="comp.qty" class="input-field comp-qty" type="number" min="1" placeholder="Qty"/>
                   <button type="button" class="comp-remove" @click="removeComponent(i)">×</button>
                 </div>
@@ -68,6 +81,13 @@
                   <label class="form-label">Harga Paket <span class="req">*</span></label>
                   <input v-model.number="form.bundlePrice" class="input-field" type="number" min="0" required/>
                 </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Stok Paket <span class="req">*</span></label>
+                <input v-model.number="form.bundleStock" class="input-field" type="number" min="0" placeholder="0"
+                  @input="() => { if (form.bundleStock < 0) form.bundleStock = 0 }"
+                />
+                <span class="form-hint">Stok paket tidak boleh negatif. Akan dikurangi otomatis saat transaksi.</span>
               </div>
 
               <div v-if="formError" class="form-error">{{ formError }}</div>
@@ -102,6 +122,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useProductsStore } from '@/stores/products'
+import AppCombobox from '@/components/AppCombobox.vue'
 
 const productsStore = useProductsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
@@ -114,11 +135,11 @@ let nextId = 3
 
 // Mock bundle data
 const bundles = ref([
-  { id: 'bnd-1', name: 'Paket Hemat A', items: [{ productId: 'prod-1', name: 'Nasi Goreng', qty: 1, price: 15000 }, { productId: 'prod-2', name: 'Es Teh', qty: 1, price: 5000 }], totalOriginal: 20000, bundlePrice: 17000 },
-  { id: 'bnd-2', name: 'Paket Kenyang B', items: [{ productId: 'prod-3', name: 'Mie Ayam', qty: 1, price: 12000 }, { productId: 'prod-4', name: 'Es Jeruk', qty: 1, price: 6000 }, { productId: 'prod-5', name: 'Kerupuk', qty: 2, price: 3000 }], totalOriginal: 24000, bundlePrice: 20000 },
+  { id: 'bnd-1', name: 'Paket Hemat A', bundleStock: 10, items: [{ productId: 'prod-1', name: 'Nasi Goreng', qty: 1, price: 15000 }, { productId: 'prod-2', name: 'Es Teh', qty: 1, price: 5000 }], totalOriginal: 20000, bundlePrice: 17000 },
+  { id: 'bnd-2', name: 'Paket Kenyang B', bundleStock: 5, items: [{ productId: 'prod-3', name: 'Mie Ayam', qty: 1, price: 12000 }, { productId: 'prod-4', name: 'Es Jeruk', qty: 1, price: 6000 }, { productId: 'prod-5', name: 'Kerupuk', qty: 2, price: 3000 }], totalOriginal: 24000, bundlePrice: 20000 },
 ])
 
-const form = reactive({ name: '', items: [{ productId: '', qty: 1, name: '', price: 0 }], bundlePrice: 0 })
+const form = reactive({ name: '', items: [{ productId: '', qty: 1, name: '', price: 0 }], bundlePrice: 0, bundleStock: 0 })
 
 const calcTotal = computed(() =>
   form.items.reduce((sum, c) => {
@@ -135,14 +156,19 @@ const onComponentSelect = (i) => {
   const p = productsStore.products.find(x => x.id === form.items[i].productId)
   if (p) { form.items[i].name = p.name; form.items[i].price = p.sellingPrice }
 }
+const onComponentSelectById = (i, val) => {
+  const p = productsStore.products.find(x => x.id === val)
+  if (p) { form.items[i].name = p.name; form.items[i].price = p.sellingPrice }
+  else { form.items[i].name = ''; form.items[i].price = 0 }
+}
 
 const openModal = (b = null) => {
   editTarget.value = b; formError.value = ''
   if (b) {
-    form.name = b.name; form.bundlePrice = b.bundlePrice
+    form.name = b.name; form.bundlePrice = b.bundlePrice; form.bundleStock = b.bundleStock ?? 0
     form.items = b.items.map(i => ({ ...i }))
   } else {
-    form.name = ''; form.bundlePrice = 0
+    form.name = ''; form.bundlePrice = 0; form.bundleStock = 0
     form.items = [{ productId: '', qty: 1, name: '', price: 0 }]
   }
   showModal.value = true
@@ -154,13 +180,14 @@ const handleSubmit = () => {
   const validItems = form.items.filter(c => c.productId && c.qty > 0)
   if (validItems.length < 2) { formError.value = 'Paket harus berisi minimal 2 produk'; return }
   if (form.bundlePrice <= 0) { formError.value = 'Harga paket harus lebih dari 0'; return }
+  if (form.bundleStock < 0) { formError.value = 'Stok paket tidak boleh negatif'; return }
   const items = validItems.map(c => { const p = productsStore.products.find(x => x.id === c.productId); return { productId: c.productId, name: p?.name || c.name, qty: c.qty, price: p?.sellingPrice || c.price } })
   const totalOriginal = items.reduce((s, i) => s + i.price * i.qty, 0)
   if (editTarget.value) {
     const idx = bundles.value.findIndex(b => b.id === editTarget.value.id)
-    if (idx !== -1) bundles.value[idx] = { ...bundles.value[idx], name: form.name.trim(), items, totalOriginal, bundlePrice: form.bundlePrice }
+    if (idx !== -1) bundles.value[idx] = { ...bundles.value[idx], name: form.name.trim(), items, totalOriginal, bundlePrice: form.bundlePrice, bundleStock: form.bundleStock }
   } else {
-    bundles.value.push({ id: `bnd-${nextId++}`, name: form.name.trim(), items, totalOriginal, bundlePrice: form.bundlePrice })
+    bundles.value.push({ id: `bnd-${nextId++}`, name: form.name.trim(), items, totalOriginal, bundlePrice: form.bundlePrice, bundleStock: form.bundleStock })
   }
   closeModal()
 }
@@ -202,6 +229,13 @@ onMounted(() => productsStore.fetchProducts())
 .module-page[data-theme="dark"] .harga-paket { color: #f1f5f9; }
 .saving-badge { padding: 0.25rem 0.625rem; border-radius: 999px; background: rgba(16,185,129,0.12); color: #059669; font-size: 0.72rem; font-weight: 700; }
 
+.bundle-stock { display: flex; align-items: center; gap: 0.375rem; margin-top: 0.625rem; padding-top: 0.625rem; border-top: 1px solid #f1f5f9; font-size: 0.78rem; font-weight: 600; }
+.stock-ok { color: #059669; }
+.stock-low { color: #ef4444; }
+.module-page[data-theme="dark"] .bundle-stock { border-top-color: #334155; }
+
+.form-hint { font-size: 0.76rem; color: #64748b; margin-top: 0.25rem; }
+
 .action-btn { width: 2rem; height: 2rem; border-radius: 8px; border: 1.5px solid #e2e8f0; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; color: #64748b; transition: all 0.2s; }
 .module-page[data-theme="dark"] .action-btn { background: #334155; border-color: #475569; color: #94a3b8; }
 .action-btn.edit:hover { border-color: #6366f1; color: #6366f1; }
@@ -235,7 +269,7 @@ onMounted(() => productsStore.fetchProducts())
 .module-page[data-theme="dark"] .input-field { background: #0f172a; border-color: #334155; color: #f1f5f9; }
 
 .comp-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center; }
-.comp-select { flex: 3; }
+.comp-combobox-wrap { flex: 3; min-width: 0; }
 .comp-qty { flex: 1; min-width: 70px; text-align: center; }
 .comp-remove { width: 2rem; height: 2rem; border-radius: 8px; border: 1.5px solid #fecaca; background: rgba(239,68,68,0.05); color: #ef4444; font-size: 1.2rem; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
 .comp-remove:hover { background: #ef4444; color: #fff; }

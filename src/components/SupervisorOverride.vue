@@ -14,10 +14,20 @@
           <form @submit.prevent="handleSubmit" class="override-form">
             <div class="form-group">
               <label class="form-label">Supervisor</label>
-              <select v-model="selectedSupervisor" class="input-field" required>
-                <option value="">-- Pilih Supervisor --</option>
-                <option v-for="s in supervisorList" :key="s.id" :value="s.id">{{ s.name }}</option>
-              </select>
+              <!-- AppCombobox: searchable supervisor picker -->
+              <AppCombobox
+                :model-value="selectedSupervisor"
+                :options="supervisorList"
+                option-key="id"
+                option-label="name"
+                option-sub-label="roleDisplay"
+                placeholder="-- Pilih Supervisor --"
+                search-placeholder="Cari nama supervisor..."
+                :clearable="false"
+                :autofocus="true"
+                class="supervisor-combobox"
+                @select="onSupervisorSelect"
+              />
             </div>
 
             <div class="form-group">
@@ -44,6 +54,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useUsersStore } from '@/stores/users'
+import AppCombobox from '@/components/AppCombobox.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -61,8 +72,16 @@ const supervisorList = computed(() =>
   usersStore.users.filter(u => {
     const roles = (u.roles || [u.role]).map(r => r?.toLowerCase())
     return roles.includes('supervisor') || roles.includes('admin') || roles.includes('superuser')
-  })
+  }).map(u => ({
+    ...u,
+    roleDisplay: (u.roles || [u.role])[0]?.replace(/^\w/, c => c.toUpperCase()) || 'Supervisor',
+  }))
 )
+
+// Combobox handler: receives full user object
+const onSupervisorSelect = (user) => {
+  selectedSupervisor.value = user?.id || ''
+}
 
 const close = () => {
   error.value = ''
@@ -78,7 +97,6 @@ const handleSubmit = async () => {
 
   verifying.value = true
   try {
-    // Mock verification: accept 'admin123' as valid password (in production → API call)
     await new Promise(r => setTimeout(r, 600))
     const supervisor = usersStore.users.find(u => u.id === selectedSupervisor.value)
 
@@ -97,7 +115,7 @@ onMounted(() => { if (!usersStore.users.length) usersStore.fetchAll() })
 
 <style scoped>
 .override-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.7); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 1.5rem; }
-.override-box { background: #fff; border-radius: 24px; width: 100%; max-width: 420px; box-shadow: 0 30px 90px rgba(0,0,0,0.3); overflow: hidden; }
+.override-box { background: #fff; border-radius: 24px; width: 100%; max-width: 440px; box-shadow: 0 30px 90px rgba(0,0,0,0.3); overflow: visible; }
 [data-theme="dark"] .override-box { background: #1e293b; }
 
 .override-header { text-align: center; padding: 2rem 2rem 0.5rem; }
@@ -113,6 +131,12 @@ onMounted(() => { if (!usersStore.users.length) usersStore.fetchAll() })
 .input-field { padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 12px; background: #fff; color: #1e293b; font-size: 0.9rem; transition: all 0.3s; outline: none; font-weight: 500; width: 100%; box-sizing: border-box; }
 .input-field:focus { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1); }
 [data-theme="dark"] .input-field { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+
+/* Make combobox trigger visually consistent with input-field */
+.supervisor-combobox :deep(.cb-trigger) { padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 12px; background: #fff; min-height: 50px; }
+[data-theme="dark"] .supervisor-combobox :deep(.cb-trigger) { background: #0f172a; border-color: #334155; }
+.supervisor-combobox :deep(.cb-display-text) { font-size: 0.9rem; font-weight: 500; color: #1e293b; }
+[data-theme="dark"] .supervisor-combobox :deep(.cb-display-text) { color: #f1f5f9; }
 
 .form-error { color: #dc2626; font-size: 0.825rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem; text-align: center; }
 

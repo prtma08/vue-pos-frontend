@@ -126,6 +126,26 @@
               <router-link to="/admin/products" class="action-link">Lihat Produk →</router-link>
             </div>
           </div>
+
+          <!-- B6: Expired Alert Card -->
+          <div class="metric-card" :class="{'metric-alert': expiringSoonCount > 0}">
+            <div class="metric-header">
+              <div class="metric-label">
+                <span class="label-icon">📅</span>
+                Segera Expired
+              </div>
+              <span v-if="expiringSoonCount > 0" class="metric-badge badge-expired">Perhatian</span>
+              <span v-else class="metric-badge badge-ok">Aman</span>
+            </div>
+            <div class="metric-value" :class="expiringSoonCount > 0 ? 'value-expired' : 'value-ok'">
+              <span class="value-main">{{ expiringSoonCount }}</span>
+              <span class="value-suffix">produk</span>
+            </div>
+            <div class="metric-absolute">dalam 30 hari ke depan</div>
+            <div class="metric-action" v-if="expiringSoonCount > 0">
+              <router-link to="/admin/expired" class="action-link">Lihat Laporan →</router-link>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -451,6 +471,86 @@
         </div>
       </section>
 
+      <!-- B6: Expired Products Alert Section -->
+      <section v-if="expiringSoon.length > 0" class="alerts-section">
+        <div class="alerts-header">
+          <h2 class="section-title">
+            <span class="title-icon">📅</span>
+            Produk Mendekati Expired
+            <span class="badge-count badge-expired-count">{{ expiringSoon.length }}</span>
+          </h2>
+          <router-link to="/admin/expired" class="view-all-link">Lihat Semua →</router-link>
+        </div>
+        <div class="alerts-table">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-product">Produk</th>
+                <th class="col-sku">SKU</th>
+                <th class="col-stock">Stok</th>
+                <th class="col-threshold">Tgl Expired</th>
+                <th class="col-status">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in expiringSoon.slice(0, 5)" :key="item.id" class="alert-row">
+                <td class="cell-product">
+                  <div class="product-cell">
+                    <div class="product-thumb" :style="{ background: getProductColor(item.productName) }">
+                      {{ (item.productName || '?')[0].toUpperCase() }}
+                    </div>
+                    <span class="product-name">{{ item.productName }}</span>
+                  </div>
+                </td>
+                <td class="cell-sku"><code class="sku-code">{{ item.productSku || '-' }}</code></td>
+                <td class="cell-stock">
+                  <span class="stock-badge">{{ item.currentStock }}</span>
+                </td>
+                <td class="cell-threshold">{{ item.expiryDate ? new Date(item.expiryDate).toLocaleDateString('id-ID') : '-' }}</td>
+                <td class="cell-status">
+                  <span class="status-chip" :class="item.expiryStatus === 'expired' ? 'status-out' : 'status-critical'">
+                    {{ item.expiryStatus === 'expired' ? 'Expired' : 'Segera Expiry' }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- D5: Stock Visual Report — Laporan Stok Tersisa per Produk -->
+      <section class="stock-report-section">
+        <div class="section-header-row">
+          <div>
+            <h2 class="section-title">📊 Stok Tersisa per Produk</h2>
+            <p class="section-subtitle">Visualisasi stok semua produk aktif — batas minimum ditandai merah</p>
+          </div>
+          <router-link to="/admin/products" class="btn-link-sm">Kelola Produk →</router-link>
+        </div>
+        <div class="stock-grid">
+          <div
+            v-for="p in stockSorted"
+            :key="p.id"
+            class="stock-item"
+          >
+            <div class="stock-item-header">
+              <span class="stock-product-name">{{ p.name }}</span>
+              <span class="stock-qty" :class="p.stock === 0 ? 'qty-out' : p.isLowStock ? 'qty-low' : 'qty-ok'">
+                {{ p.stock }} unit
+              </span>
+            </div>
+            <div class="stock-bar-track">
+              <div
+                class="stock-bar-fill"
+                :class="p.stock === 0 ? 'fill-out' : p.isLowStock ? 'fill-low' : 'fill-ok'"
+                :style="{ width: stockBarWidth(p) + '%' }"
+              />
+              <div class="stock-bar-threshold" :style="{ left: thresholdPos(p) + '%' }" title="Batas minimum stok" />
+            </div>
+          </div>
+        </div>
+      </section>
+
     </div>
   </div>
 </template>
@@ -485,6 +585,27 @@ const profitMargin = computed(() =>
 
 const lowStockProducts = computed(() => productsStore.lowStockProducts)
 const lowStockThreshold = computed(() => productsStore.lowStockThreshold)
+
+// B6: Expired products alert
+const expiringSoon = computed(() => productsStore.getExpiringProducts(30))
+const expiringSoonCount = computed(() => expiringSoon.value.length)
+
+// D5: Stock visual report
+const stockSorted = computed(() =>
+  [...(productsStore.products || [])]
+    .filter(p => p.stock !== undefined)
+    .sort((a, b) => a.stock - b.stock)
+    .slice(0, 30)  // show up to 30 products
+)
+const stockBarWidth = (p) => {
+  const maxRef = Math.max(...(productsStore.products || []).map(x => x.stock || 0), 1)
+  return Math.min(100, Math.round((p.stock / maxRef) * 100))
+}
+const thresholdPos = (p) => {
+  const maxRef = Math.max(...(productsStore.products || []).map(x => x.stock || 0), 1)
+  const threshold = p.lowStockThreshold ?? productsStore.lowStockThreshold ?? 10
+  return Math.min(99, Math.round((threshold / maxRef) * 100))
+}
 
 // Greeting
 const greeting = computed(() => {
@@ -1853,4 +1974,24 @@ watch(chartPeriod, () => { hoveredIndex.value = null })
   .staff-section { padding: 1.25rem; }
   .col-bar { display: none; }
 }
+
+/* ── D5: Stock Visual Report ──────────────────────────── */
+.stock-report-section { background: var(--bg-surface); border-radius: 24px; padding: 2rem; box-shadow: var(--shadow-md); border: 1px solid var(--border, rgba(0,0,0,0.07)); margin-top: 2rem; }
+.section-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem; }
+.btn-link-sm { font-size: 0.8rem; font-weight: 600; color: #6366f1; text-decoration: none; padding: 0.4rem 0.875rem; border: 1.5px solid rgba(99,102,241,0.3); border-radius: 8px; transition: all 0.2s; }
+.btn-link-sm:hover { background: rgba(99,102,241,0.08); }
+.stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.875rem; }
+.stock-item { padding: 0.75rem; background: var(--bg-base, #f8fafc); border-radius: 12px; border: 1px solid var(--border, #e2e8f0); }
+.stock-item-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; }
+.stock-product-name { font-size: 0.8rem; font-weight: 600; color: var(--text-primary, #1e293b); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+.stock-qty { font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 6px; }
+.qty-ok { background: rgba(16,185,129,0.1); color: #059669; }
+.qty-low { background: rgba(245,158,11,0.1); color: #d97706; }
+.qty-out { background: rgba(239,68,68,0.1); color: #dc2626; }
+.stock-bar-track { position: relative; height: 7px; background: var(--border, #e2e8f0); border-radius: 4px; overflow: visible; }
+.stock-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+.fill-ok { background: linear-gradient(90deg, #10b981, #34d399); }
+.fill-low { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.fill-out { width: 8px !important; background: #ef4444; }
+.stock-bar-threshold { position: absolute; top: -3px; width: 2px; height: 13px; background: #ef4444; border-radius: 1px; opacity: 0.5; }
 </style>

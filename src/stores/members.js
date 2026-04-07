@@ -5,10 +5,10 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 export const MOCK_MEMBERS = [
-    { id: 'mbr-1', name: 'Budi Santoso', email: 'budi@email.com', phone: '08111111111', points: 150, createdAt: '2024-02-01T00:00:00.000Z' },
-    { id: 'mbr-2', name: 'Siti Rahayu', email: 'siti@email.com', phone: '08222222222', points: 320, createdAt: '2024-02-10T00:00:00.000Z' },
-    { id: 'mbr-3', name: 'Ahmad Fauzi', email: 'ahmad@email.com', phone: '08333333333', points: 80, createdAt: '2024-03-01T00:00:00.000Z' },
-    { id: 'mbr-4', name: 'Dewi Lestari', email: 'dewi@email.com', phone: '08444444444', points: 240, createdAt: '2024-03-15T00:00:00.000Z' },
+    { id: 'mbr-1', name: 'Budi Santoso', phone: '08111111111', isActive: true, createdAt: '2024-02-01T00:00:00.000Z' },
+    { id: 'mbr-2', name: 'Siti Rahayu', phone: '08222222222', isActive: true, createdAt: '2024-02-10T00:00:00.000Z' },
+    { id: 'mbr-3', name: 'Ahmad Fauzi', phone: '08333333333', isActive: false, createdAt: '2024-03-01T00:00:00.000Z' },
+    { id: 'mbr-4', name: 'Dewi Lestari', phone: '08444444444', isActive: true, createdAt: '2024-03-15T00:00:00.000Z' },
 ]
 
 export const MOCK_DISCOUNTS = [
@@ -31,8 +31,7 @@ export const useMembersStore = defineStore('members', () => {
         const q = searchTerm.value.toLowerCase()
         return members.value.filter(m =>
             m.name.toLowerCase().includes(q) ||
-            m.phone.includes(q) ||
-            m.email?.toLowerCase().includes(q)
+            m.phone.includes(q)
         )
     })
 
@@ -73,7 +72,7 @@ export const useMembersStore = defineStore('members', () => {
         loading.value = true
         if (USE_MOCK) {
             await new Promise(r => setTimeout(r, 300))
-            const newMember = { ...payload, id: `mbr-${nextMockId++}`, points: 0, createdAt: new Date().toISOString() }
+            const newMember = { ...payload, id: `mbr-${nextMockId++}`, isActive: payload.isActive !== false, createdAt: new Date().toISOString() }
             MOCK_MEMBERS.push(newMember)
             members.value.push(newMember)
             loading.value = false
@@ -138,7 +137,7 @@ export const useMembersStore = defineStore('members', () => {
     const searchMembers = (query) => {
         if (!query) return members.value
         const q = query.toLowerCase()
-        return members.value.filter(m => m.name.toLowerCase().includes(q) || m.phone.includes(q) || m.email?.toLowerCase().includes(q))
+        return members.value.filter(m => m.name.toLowerCase().includes(q) || m.phone.includes(q))
     }
 
     return { members, discounts, loading, error, searchTerm, filtered, fetchMembers, fetchDiscounts, add, update, remove, getMemberById, searchMembers }

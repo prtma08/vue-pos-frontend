@@ -125,7 +125,13 @@ export const useProductsStore = defineStore('products', () => {
   // ── addProduct  ────────────────────────────────────────────────────────────
   const addProduct = async (payload) => {
     loading.value = true
+    // E4 FIX: Inisialisasi HPP awal = harga beli jika stok > 0 dan hpp belum diset
+    // Jika produk baru langsung punya stok dan buyPrice, HPP = buyPrice (bukan 0)
     const body = { ...payload, price: payload.price ?? payload.sellingPrice }
+    if (!('hpp' in body) || body.hpp === 0 || body.hpp === undefined || body.hpp === null) {
+      // Jika ada buyPrice, gunakan sebagai initial HPP; jika tidak, gunakan harga jual sebagai fallback sementara
+      body.hpp = body.buyPrice || body.initialBuyPrice || 0
+    }
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 350))
       const cat = MOCK_CATEGORIES.find(c => c.id === body.categoryId)
@@ -149,7 +155,20 @@ export const useProductsStore = defineStore('products', () => {
   const updateProduct = async (productId, updates) => {
     loading.value = true
     error.value = null
-    const body = { ...updates, price: updates.price ?? updates.sellingPrice }
+
+    // E3 FIX: Block direct HPP overwrite — HPP must only change via purchaseStock() weighted-average formula.
+    // Direct HPP edits from the edit form bypass the weighted average and corrupt cost accuracy.
+    let hppWarning = false
+    const safeUpdates = { ...updates }
+    if ('hpp' in safeUpdates) {
+      hppWarning = true
+      delete safeUpdates.hpp
+      if (import.meta.env.DEV) {
+        console.warn('[Products] updateProduct: HPP field stripped — gunakan purchaseStock() untuk mengubah HPP via weighted average.')
+      }
+    }
+
+    const body = { ...safeUpdates, price: safeUpdates.price ?? safeUpdates.sellingPrice }
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 300))
       const idx = products.value.findIndex(p => p.id === productId)
@@ -161,13 +180,13 @@ export const useProductsStore = defineStore('products', () => {
         if (mockIdx !== -1) MOCK_PRODUCTS[mockIdx] = merged
       }
       loading.value = false
-      return { success: true }
+      return { success: true, hppWarning }
     }
     try {
       const response = await apiClient.put(`/products/${productId}`, body)
       const idx = products.value.findIndex(p => p.id === productId)
       if (idx !== -1) products.value[idx] = normalizeProduct({ ...products.value[idx], ...response.data })
-      return { success: true }
+      return { success: true, hppWarning }
     } catch (err) {
       error.value = err.response?.data?.message || 'Gagal mengupdate produk'
       return { success: false, message: error.value }

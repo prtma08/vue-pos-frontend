@@ -25,9 +25,12 @@ const AdminReconciliation = () => import('@/modules/admin/reconciliation.vue')
 const AdminDiscounts = () => import('@/modules/admin/discounts.vue')
 const AdminPosDevices = () => import('@/modules/admin/posDevices.vue')
 const AdminPurchase = () => import('@/modules/admin/purchase.vue')
+const AdminPrices = () => import('@/modules/admin/prices.vue')
 const AdminBundles = () => import('@/modules/admin/bundles.vue')
 const AdminSalesReport = () => import('@/modules/admin/salesReport.vue')
 const AdminExpired = () => import('@/modules/admin/expired.vue')
+const AdminSettings = () => import('@/modules/admin/settings.vue')  // D2
+const CashierCFD = () => import('@/modules/cashier/CFD.vue')      // D1
 
 // ─── 404 placeholder ─────────────────────────────────────────────────────────
 const NotFound = defineComponent({
@@ -103,6 +106,14 @@ const routes = [
     name: 'ClosingShift',
     component: ClosingShift,
     meta: { requiresAuth: true, roles: ['kasir'], requiresPosDevice: true, title: 'Tutup Shift — Nextore POS' },
+  },
+
+  // D1: Customer Facing Display (CFD) — no auth required (new window)
+  {
+    path: '/cashier/cfd',
+    name: 'CashierCFD',
+    component: CashierCFD,
+    meta: { requiresAuth: false, title: 'Customer Display — Nextore POS' },
   },
 
   // ── Admin (nested inside MainLayout) ───────────────────────────────────
@@ -181,6 +192,12 @@ const routes = [
         meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Purchase Barang — Nextore' },
       },
       {
+        path: 'prices',
+        name: 'AdminPrices',
+        component: AdminPrices,
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Manajemen Harga — Nextore' },
+      },
+      {
         path: 'bundles',
         name: 'AdminBundles',
         component: AdminBundles,
@@ -197,6 +214,13 @@ const routes = [
         name: 'AdminExpired',
         component: AdminExpired,
         meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Laporan Expired — Nextore' },
+      },
+      // D2: System Settings
+      {
+        path: 'settings',
+        name: 'AdminSettings',
+        component: AdminSettings,
+        meta: { requiresAuth: true, roles: ['admin', 'superuser'], title: 'Pengaturan — Nextore' },
       },
     ],
   },
@@ -256,8 +280,9 @@ router.beforeEach(async (to, _from, next) => {
       return next('/cashier/device-select')
     }
 
-    // Shift check: cashier must have open shift to access POS
-    if (to.meta.requiresShift) {
+    // Shift check: kasir must have open shift to access POS
+    // E4 FIX: Supervisor role bypasses the shift guard — they supervise kasir, not run their own shift
+    if (to.meta.requiresShift && authStore.activeRole !== 'supervisor') {
       const { useShiftStore } = await import('@/stores/shift')
       const shiftStore = useShiftStore()
       shiftStore.restoreShift()

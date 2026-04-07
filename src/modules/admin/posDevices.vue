@@ -61,6 +61,12 @@
                 <label class="form-label">Lokasi</label>
                 <input v-model="form.location" class="input-field" type="text" placeholder="contoh: Lantai 1 - Depan"/>
               </div>
+              <div class="form-group">
+                <label class="form-label">Status</label>
+                <button type="button" class="status-toggle" :class="form.isActive ? 'active' : 'inactive'" @click="form.isActive = !form.isActive">
+                  {{ form.isActive ? '● Aktif' : '○ Nonaktif' }}
+                </button>
+              </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
@@ -96,11 +102,11 @@ import { usePosDevicesStore } from '@/stores/posDevices'
 const store = usePosDevicesStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 const showModal = ref(false); const editTarget = ref(null); const deleteTarget = ref(null); const formError = ref('')
-const form = reactive({ name: '', location: '' })
+const form = reactive({ name: '', location: '', isActive: true })
 onMounted(() => store.fetchAll())
-const openModal = (d = null) => { editTarget.value = d; formError.value = ''; Object.assign(form, { name: d?.name || '', location: d?.location || '' }); showModal.value = true }
+const openModal = (d = null) => { editTarget.value = d; formError.value = ''; Object.assign(form, { name: d?.name || '', location: d?.location || '', isActive: d?.isActive !== false }); showModal.value = true }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
-const handleSubmit = async () => { formError.value = ''; const p = { name: form.name.trim(), location: form.location.trim() }; const r = editTarget.value ? await store.update(editTarget.value.id, p) : await store.add(p); if (r.success) closeModal(); else formError.value = r.message }
+const handleSubmit = async () => { formError.value = ''; const p = { name: form.name.trim(), location: form.location.trim(), isActive: form.isActive }; const r = editTarget.value ? await store.update(editTarget.value.id, p) : await store.add(p); if (r.success) closeModal(); else formError.value = r.message }
 const handleDelete = async () => { const r = await store.remove(deleteTarget.value.id); if (r.success) deleteTarget.value = null }
 </script>
 

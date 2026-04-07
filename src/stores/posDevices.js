@@ -60,7 +60,7 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
         loading.value = true
         if (USE_MOCK) {
             await new Promise(r => setTimeout(r, 300))
-            const newDevice = { ...payload, id: `pos-${nextMockId++}`, isActive: true, currentCashier: null, createdAt: new Date().toISOString() }
+            const newDevice = { ...payload, id: `pos-${nextMockId++}`, isActive: payload.isActive !== false, currentCashier: null, createdAt: new Date().toISOString() }
             MOCK_DEVICES.push(newDevice)
             devices.value.push(newDevice)
             loading.value = false

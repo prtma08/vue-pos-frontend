@@ -65,6 +65,38 @@
         </button>
       </form>
     </div>
+
+    <!-- C10: Purchase History for selected product -->
+    <div v-if="selectedProduct" class="history-card">
+      <h3 class="card-title">📋 Riwayat Pembelian <span class="history-count">{{ purchaseHistory.length }} entri</span></h3>
+      <div v-if="purchaseHistory.length === 0" class="history-empty">
+        Belum ada riwayat pembelian untuk produk ini.
+      </div>
+      <div v-else class="history-table-wrap">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Tanggal</th>
+              <th>Qty</th>
+              <th>Harga Beli/unit</th>
+              <th>HPP Sebelum</th>
+              <th>HPP Sesudah</th>
+              <th>Tgl Expired</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="rec in purchaseHistory" :key="rec.id">
+              <td>{{ new Date(rec.purchasedAt).toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) }}</td>
+              <td class="qty-cell">+{{ rec.qty }}</td>
+              <td>Rp {{ formatCurrency(rec.buyPrice) }}</td>
+              <td class="hpp-prev">Rp {{ formatCurrency(rec.previousHpp) }}</td>
+              <td class="hpp-new">Rp {{ formatCurrency(rec.newHpp) }}</td>
+              <td>{{ rec.expiryDate ? new Date(rec.expiryDate).toLocaleDateString('id-ID') : '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -98,6 +130,14 @@ const newHpp = computed(() => {
   return Math.round((totalOld + totalNew) / (selectedProduct.value.stock + form.qty))
 })
 
+// C10: Purchase history for selected product
+const purchaseHistory = computed(() => {
+  if (!selectedProduct.value) return []
+  return [...(productsStore.purchaseRecords || [])]
+    .filter(r => r.productId === selectedProduct.value.id)
+    .sort((a, b) => new Date(b.purchasedAt) - new Date(a.purchasedAt))
+})
+
 const onProductSelect = () => { Object.assign(form, { qty: 0, costPerUnit: 0, expiryDate: '' }); errorMsg.value = ''; successMsg.value = '' }
 
 const handlePurchase = async () => {
@@ -107,7 +147,7 @@ const handlePurchase = async () => {
   try {
     const result = await productsStore.purchaseStock(selectedProductId.value, form.qty, form.costPerUnit, needsExpiry.value ? form.expiryDate : null)
     if (result.success) {
-      successMsg.value = `✅ Stok berhasil ditambah! HPP baru: Rp ${formatCurrency(result.newHpp)}`
+      successMsg.value = `✅ Stok berhasil ditambah! HPP baru: Rp ${formatCurrency(result.data?.newHpp ?? newHpp.value)}`
       Object.assign(form, { qty: 0, costPerUnit: 0, expiryDate: '' })
       setTimeout(() => { successMsg.value = '' }, 5000)
     } else { errorMsg.value = result.message }
@@ -174,4 +214,22 @@ onMounted(() => {
 .btn-primary:hover:not(:disabled) { transform: translateY(-2px); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-full { width: 100%; }
+
+/* C10: Purchase history table */
+.history-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 2rem; box-shadow: 0 10px 40px rgba(0,0,0,0.06); margin-top: 1.5rem; }
+.module-page[data-theme="dark"] .history-card { background: #1e293b; border-color: #334155; }
+.history-count { font-size: 0.75rem; font-weight: 500; color: #94a3b8; margin-left: 0.5rem; }
+.history-empty { text-align: center; color: #94a3b8; padding: 2rem 0; font-size: 0.875rem; }
+.history-table-wrap { overflow-x: auto; }
+.history-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.history-table th { padding: 0.6rem 0.75rem; text-align: left; font-size: 0.72rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1.5px solid #e2e8f0; }
+.module-page[data-theme="dark"] .history-table th { border-color: #334155; color: #64748b; }
+.history-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid #f1f5f9; color: #475569; }
+.module-page[data-theme="dark"] .history-table td { border-color: #1e293b; color: #cbd5e1; }
+.history-table tr:last-child td { border-bottom: none; }
+.history-table tr:hover td { background: #f8fafc; }
+.module-page[data-theme="dark"] .history-table tr:hover td { background: #0f172a; }
+.qty-cell { color: #059669; font-weight: 700; }
+.hpp-prev { color: #94a3b8; text-decoration: line-through; font-size: 0.8rem; }
+.hpp-new { color: #6366f1; font-weight: 700; }
 </style>

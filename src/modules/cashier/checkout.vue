@@ -61,6 +61,12 @@
           <!-- Admin Link -->
           <router-link v-if="authStore.isAdmin || authStore.isSuperuser" to="/admin" class="btn-link">Admin</router-link>
 
+          <!-- D1: CFD Button -->
+          <button class="btn-cfd" @click="openCFD" title="Customer Facing Display">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            CFD
+          </button>
+
           <!-- Switch Role (multi-role users) -->
           <button v-if="authStore.roles && authStore.roles.length > 1" class="btn-switch-role" @click="handleSwitchRole" title="Ganti Role">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
@@ -84,21 +90,25 @@
       <!-- ── Left: Product Catalog ──────────────────────────────────────── -->
       <section class="catalog-panel">
         
-        <!-- Toolbar: Search + Categories -->
+        <!-- Toolbar: Combobox Search + Categories -->
         <div class="catalog-toolbar">
-          <div class="search-field">
-            <span class="search-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-              </svg>
-            </span>
-            <input
-              v-model="searchTerm"
-              type="text"
-              placeholder="Cari produk atau SKU..."
-              class="input-control"
-            />
-          </div>
+          <!-- AppCombobox for quick add by search or barcode -->
+          <AppCombobox
+            :model-value="comboProductId"
+            :options="productsStore.products"
+            option-key="id"
+            option-label="name"
+            option-sub-label="sku"
+            placeholder="🔍 Cari atau scan barcode produk..."
+            search-placeholder="Ketik nama / SKU / barcode..."
+            :clearable="false"
+            :autofocus="true"
+            :barcode-mode="true"
+            barcode-field="sku"
+            :filter-fn="productFilterFn"
+            class="product-combobox"
+            @select="onComboProductSelect"
+          />
 
           <div class="category-pills">
             <button
@@ -206,49 +216,75 @@
             </div>
           </div>
 
-          <!-- Cash-Only Payment -->
+          <!-- B3: Payment Method Selector -->
           <div class="payment-section">
-            <span class="section-label">💵 Pembayaran Tunai</span>
-            <div class="cash-input-row">
-              <span class="cash-prefix">Rp</span>
-              <input
-                v-model="cashInputFormatted"
-                type="text"
-                inputmode="numeric"
-                placeholder="Masukkan uang diterima"
-                class="cash-input"
-                @input="formatCashInput"
-              />
+            <span class="section-label">💳 Metode Pembayaran</span>
+            <div class="payment-method-pills">
+              <button
+                v-for="m in paymentMethods" :key="m.value"
+                class="pay-pill"
+                :class="{ 'is-active': activeOrder.paymentMethod === m.value }"
+                @click="cartStore.setPaymentMethod(cartStore.activeOrderId, m.value)"
+              >
+                <span>{{ m.icon }}</span> {{ m.label }}
+              </button>
             </div>
-            <div class="quick-cash">
-              <button type="button" v-for="amt in quickCashAmounts" :key="amt" class="quick-cash-btn" @click="setQuickCash(amt)">{{ formatCurrency(amt) }}</button>
-              <button type="button" class="quick-cash-btn exact" @click="setQuickCash(activeOrder.summary.total)">Uang Pas</button>
-            </div>
-            <div v-if="changeAmount > 0" class="change-display">
-              <span>Kembalian</span>
-              <span class="change-value">Rp {{ formatCurrency(changeAmount) }}</span>
-            </div>
-            <div v-if="cashInputRaw > 0 && cashInputRaw < activeOrder.summary.total" class="cash-warning">
-              ⚠️ Uang kurang Rp {{ formatCurrency(activeOrder.summary.total - cashInputRaw) }}
+
+            <!-- Cash input only for CASH method -->
+            <template v-if="activeOrder.paymentMethod === 'CASH' || !activeOrder.paymentMethod">
+              <div class="cash-input-row">
+                <span class="cash-prefix">Rp</span>
+                <input
+                  v-model="cashInputFormatted"
+                  type="text"
+                  inputmode="numeric"
+                  placeholder="Masukkan uang diterima"
+                  class="cash-input"
+                  @input="formatCashInput"
+                />
+              </div>
+              <div class="quick-cash">
+                <button type="button" v-for="amt in quickCashAmounts" :key="amt" class="quick-cash-btn" @click="setQuickCash(amt)">{{ formatCurrency(amt) }}</button>
+                <button type="button" class="quick-cash-btn exact" @click="setQuickCash(activeOrder.summary.total)">Uang Pas</button>
+              </div>
+              <div v-if="changeAmount > 0" class="change-display">
+                <span>Kembalian</span>
+                <span class="change-value">Rp {{ formatCurrency(changeAmount) }}</span>
+              </div>
+              <div v-if="cashInputRaw > 0 && cashInputRaw < activeOrder.summary.total" class="cash-warning">
+                ⚠️ Uang kurang Rp {{ formatCurrency(activeOrder.summary.total - cashInputRaw) }}
+              </div>
+            </template>
+            <!-- Non-cash: confirm message -->
+            <div v-else class="noncash-confirm">
+              <span v-if="activeOrder.paymentMethod === 'QRIS'">📱 Bayar via QRIS — konfirmasi setelah scan</span>
+              <span v-else-if="activeOrder.paymentMethod === 'TRANSFER'">🏦 Bayar via Transfer — konfirmasi setelah transfer berhasil</span>
             </div>
           </div>
 
-          <!-- Member Selector -->
+          <!-- Member Combobox (D3-style: search by name or phone) -->
           <div class="member-selector">
             <span class="section-label">Member</span>
-            <select class="select-control" @change="handleMemberSelect" :value="activeOrder.member?.id || ''">
-              <option value="">-- Tanpa Member --</option>
-              <option v-for="m in membersStore.members" :key="m.id" :value="m.id">
-                {{ m.name }} • {{ m.phone }}
-              </option>
-            </select>
-            <button class="btn-add-inline" @click="showNewMemberForm = !showNewMemberForm">
-              {{ showNewMemberForm ? '✕ Batal' : '+ Member Baru' }}
-            </button>
+            <AppCombobox
+              :model-value="activeOrder.member?.id || ''"
+              :options="membersStore.members"
+              option-key="id"
+              option-label="name"
+              option-sub-label="phone"
+              placeholder="-- Tanpa Member --"
+              search-placeholder="Cari nama atau No. HP..."
+              :clearable="true"
+              :autofocus="true"
+              add-new-label="+ Tambah Member Baru"
+              class="member-combobox"
+              @select="handleMemberComboSelect"
+              @add-new="onAddMemberFromCombo"
+            />
             <div v-if="showNewMemberForm" class="inline-member-form">
               <input v-model="newMemberForm.name" class="input-inline" placeholder="Nama member" />
               <input v-model="newMemberForm.phone" class="input-inline" placeholder="No. HP" />
               <button class="btn-save-inline" @click="handleAddMember" :disabled="!newMemberForm.name.trim()">Simpan</button>
+              <button class="btn-add-inline" @click="showNewMemberForm = false">✕ Batal</button>
             </div>
           </div>
 
@@ -267,6 +303,21 @@
             <button class="btn-discount" @click="promptDiscount" title="Berikan diskon untuk seluruh order">
               <span class="disc-icon">%</span> Beri Diskon Khusus
             </button>
+            <!-- B4: Auto-suggest active discounts -->
+            <template v-if="applicableDiscounts.length > 0">
+              <div class="discount-suggestions">
+                <span class="disc-suggest-label">Promo:</span>
+                <button
+                  v-for="disc in applicableDiscounts" :key="disc.id"
+                  class="disc-chip"
+                  :class="{ 'is-applied': activeOrder.summary.discountPercent === disc.value && disc.type === 'PERCENTAGE' }"
+                  @click="applyAutoDiscount(disc)"
+                  :title="disc.name"
+                >
+                  {{ disc.name }}: {{ discountsStore.getDiscountLabel(disc) }}
+                </button>
+              </div>
+            </template>
           </div>
 
           <!-- Order Summary -->
@@ -300,11 +351,13 @@
           <button
             class="btn-checkout"
             @click="handleSubmitOrder"
-            :disabled="submitting || !activeOrder.items.length || cashInputRaw < activeOrder.summary.total"
+            :disabled="submitting || !activeOrder.items.length || (activeOrder.paymentMethod === 'CASH' || !activeOrder.paymentMethod) && cashInputRaw < activeOrder.summary.total"
           >
             <span v-if="submitting" class="btn-loader"></span>
-            <span v-else class="btn-icon">💵</span>
-            <span class="btn-label">{{ submitting ? 'Memproses...' : 'Bayar Tunai' }}</span>
+            <span v-else class="btn-icon">
+              {{ activeOrder.paymentMethod === 'QRIS' ? '📱' : activeOrder.paymentMethod === 'TRANSFER' ? '🏦' : '💵' }}
+            </span>
+            <span class="btn-label">{{ submitting ? 'Memproses...' : 'Bayar ' + (activeOrder.paymentMethod || 'Tunai') }}</span>
             <span class="btn-total">{{ formatCurrency(activeOrder.summary.total) }}</span>
           </button>
         </div>
@@ -345,13 +398,15 @@
 <script setup>
 // ── Script section remains UNCHANGED per user request ──
 // All logic, bindings, and function calls preserved exactly as original
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
 import SupervisorOverride from '@/components/SupervisorOverride.vue'
+import AppCombobox from '@/components/AppCombobox.vue'  // Combobox
 import { useAuthStore }    from '@/stores/auth'
 import { useProductsStore } from '@/stores/products'
 import { useCartStore }    from '@/stores/cart'
 import { useMembersStore } from '@/stores/members'
 import { useShiftStore }   from '@/stores/shift'
+import { useDiscountsStore } from '@/stores/discounts'  // B4
 import { useRouter }       from 'vue-router'
 
 const authStore     = useAuthStore()
@@ -359,9 +414,19 @@ const productsStore = useProductsStore()
 const cartStore     = useCartStore()
 const membersStore  = useMembersStore()
 const shiftStore    = useShiftStore()
+const discountsStore = useDiscountsStore()  // B4
 const router        = useRouter()
 
+// B3: Payment Method options
+const paymentMethods = [
+  { value: 'CASH', label: 'Tunai', icon: '💵' },
+  { value: 'QRIS', label: 'QRIS', icon: '📱' },
+  { value: 'TRANSFER', label: 'Transfer', icon: '🏦' },
+]
+
 const searchTerm    = ref('')
+const searchInputRef = ref(null)  // D3: barcode scanner autofocus (legacy ref kept for onMounted)
+const comboProductId = ref('')    // Combobox: controlled value (always reset after selection)
 const activeCategory = ref(null)
 const submitting    = ref(false)
 const successMsg    = ref('')
@@ -393,6 +458,36 @@ const changeAmount = computed(() => {
   if (!activeOrder.value || cashInputRaw.value <= 0) return 0
   return Math.max(0, cashInputRaw.value - activeOrder.value.summary.total)
 })
+
+// B4: Compute discounts applicable to current order (TRANSACTION type + MEMBER type if member is selected)
+const applicableDiscounts = computed(() => {
+  if (!activeOrder.value) return []
+  const memberId = activeOrder.value.member?.id
+  return discountsStore.activeDiscounts.filter(d => {
+    if (d.target === 'TRANSACTION') return true
+    if (d.target === 'MEMBER' && memberId && (!d.targetId || d.targetId === memberId)) return true
+    return false
+  })
+})
+
+// B4: Apply a discount from the suggestion chips
+const applyAutoDiscount = async (disc) => {
+  if (!activeOrder.value) return
+  let pct = 0
+  if (disc.type === 'PERCENTAGE') {
+    pct = disc.value
+  } else if (disc.type === 'NOMINAL') {
+    // Convert nominal to percentage based on current subtotal
+    const sub = activeOrder.value.summary.subtotal
+    if (sub <= 0) return
+    pct = Math.round((disc.value / sub) * 100 * 100) / 100
+  }
+  const res = await cartStore.applyDiscount(cartStore.activeOrderId, pct, true)
+  if (res.requiresAuth) {
+    handleRequestAuth(`diskon "${disc.name}" (${discountsStore.getDiscountLabel(disc)})`)
+  }
+}
+
 
 const formatCashInput = () => {
   const digits = cashInputFormatted.value.replace(/\D/g, '')
@@ -490,20 +585,17 @@ const promptPriceChange = async (itemIndex) => {
 }
 
 const handleSupervisorApproved = async (supervisor) => {
-  const pending = cartStore.supervisorAuthPending
-  if (!pending) return
-
-  if (pending.action === 'discount') {
-    await cartStore.applyDiscount(cartStore.activeOrderId, pending.discountPercent, false)
-  } else if (pending.action === 'priceChange') {
-    await cartStore.changePriceItem(cartStore.activeOrderId, pending.itemIndex, pending.newPrice, false)
+  // B1 FIX: delegate entirely to completeSupervisorAuth() — store applies the pending action and clears itself
+  const result = await cartStore.completeSupervisorAuth(true, supervisor?.id)
+  if (!result.success) {
+    console.warn('[Checkout] Supervisor auth failed to apply:', result.message)
   }
-  cartStore.supervisorAuthPending = null
 }
 
 const handleSupervisorDenied = () => {
   alert('Otorisasi Supervisor Ditolak/Dibatalkan')
-  cartStore.supervisorAuthPending = null
+  // B1 FIX: use store action instead of direct mutation
+  cartStore.completeSupervisorAuth(false)
 }
 
 const handleMemberSelect = (e) => {
@@ -524,6 +616,39 @@ const handleAddMember = async () => {
     newMemberForm.phone = ''
     showNewMemberForm.value = false
   }
+}
+
+// ── Combobox handlers ─────────────────────────────────────────────────────────
+
+// Product Combobox filter: match name, sku, barcode, category name
+const productFilterFn = (product, q) => {
+  const lower = q.toLowerCase()
+  return (
+    product.name?.toLowerCase().includes(lower) ||
+    product.sku?.toLowerCase().includes(lower) ||
+    product.barcode?.toLowerCase().includes(lower) ||
+    product.category?.name?.toLowerCase().includes(lower)
+  )
+}
+
+// When user selects a product from Combobox → add to cart, reset trigger
+const onComboProductSelect = (product) => {
+  if (!product) return
+  handleAddProduct(product)
+  // Reset combobox trigger to placeholder after selection (UX: ready for next scan)
+  nextTick(() => { comboProductId.value = '' })
+}
+
+// Member Combobox select handler (receives full member object or null for clear)
+const handleMemberComboSelect = (member) => {
+  cartStore.setMember(cartStore.activeOrderId, member || null)
+}
+
+// "Tambah Member Baru" clicked from Combobox empty state
+const onAddMemberFromCombo = (query) => {
+  newMemberForm.name = query || ''
+  newMemberForm.phone = ''
+  showNewMemberForm.value = true
 }
 
 const handleSubmitOrder = async () => {
@@ -570,7 +695,57 @@ onMounted(async () => {
     membersStore.fetchMembers(),
   ])
   if (!activeOrder.value) cartStore.createOrder()
+
+  // D3: Autofocus barcode search input
+  nextTick(() => searchInputRef.value?.focus())
+
+  // D3: Barcode burst-input detection
+  // A scanner typically sends ≥4 chars within 100ms – we detect this and auto-add the product
+  let barcodeBuffer = ''
+  let barcodeTimer = null
+  document.addEventListener('keydown', (e) => {
+    // Ignore if user is typing in a modal input / payment input / etc.
+    const tag = document.activeElement?.tagName
+    const isModal = document.activeElement?.closest?.('.modal-box, .checkout-right')
+    if (isModal || (tag === 'INPUT' && document.activeElement !== searchInputRef.value)) return
+
+    if (e.key === 'Enter') {
+      // On Enter: if buffer has content, treat as barcode search
+      if (barcodeBuffer.length >= 3) {
+        const sku = barcodeBuffer.trim()
+        const product = productsStore.products.find(p => p.sku === sku || p.name.toLowerCase() === sku.toLowerCase())
+        if (product && product.stock > 0) {
+          handleAddProduct(product)
+          searchTerm.value = ''
+          barcodeBuffer = ''
+          clearTimeout(barcodeTimer)
+          return
+        }
+      }
+      barcodeBuffer = ''
+      return
+    }
+
+    if (e.key.length === 1) {
+      // Focus search field so single chars appear there too
+      if (document.activeElement !== searchInputRef.value) {
+        searchInputRef.value?.focus()
+      }
+      barcodeBuffer += e.key
+      clearTimeout(barcodeTimer)
+      barcodeTimer = setTimeout(() => { barcodeBuffer = '' }, 100)
+    }
+  })
 })
+
+// D1: Open Customer Facing Display in new window
+const openCFD = () => {
+  const cfdUrl = new URL('/cashier/cfd', window.location.origin)
+  const cfdWin = window.open(cfdUrl.toString(), 'nextore-cfd', 'width=1080,height=720,menubar=no,toolbar=no')
+  if (!cfdWin) {
+    alert('Pop-up diblokir oleh browser. Izinkan pop-up untuk fitur CFD.')
+  }
+}
 </script>
 
 <style scoped>
@@ -1346,6 +1521,86 @@ onMounted(async () => {
   align-items: center;
 }
 
+/* B3: Payment method pills */
+.payment-method-pills {
+  display: flex;
+  gap: 0.375rem;
+  margin-bottom: 0.75rem;
+}
+
+.pay-pill {
+  flex: 1;
+  padding: 0.5rem 0.5rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-subtle);
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--pos-transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.pay-pill:hover { border-color: var(--accent); color: var(--accent); }
+.pay-pill.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(99,102,241,0.35);
+}
+
+.noncash-confirm {
+  padding: 0.75rem 1rem;
+  background: var(--bg-surface-2);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+  border: 1px dashed var(--border-subtle);
+}
+
+/* B4: Discount suggestion chips */
+.discount-suggestions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.disc-suggest-label {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.disc-chip {
+  padding: 0.3rem 0.6rem;
+  border-radius: 20px;
+  border: 1.5px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--pos-transition);
+  white-space: nowrap;
+}
+
+.disc-chip:hover { background: var(--accent); color: #fff; }
+.disc-chip.is-applied {
+  background: var(--success, #10b981);
+  border-color: var(--success, #10b981);
+  color: #fff;
+}
+
+
+
 .cash-prefix {
   position: absolute;
   left: 1rem;
@@ -1864,4 +2119,49 @@ onMounted(async () => {
 .product-card:nth-child(3) { animation-delay: 0.06s; }
 .product-card:nth-child(4) { animation-delay: 0.08s; }
 .product-card:nth-child(5) { animation-delay: 0.1s; }
+
+/* D1: CFD button */
+.btn-cfd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--pos-border-subtle, rgba(99,102,241,0.3));
+  background: transparent;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--pos-transition);
+}
+.btn-cfd:hover {
+  background: rgba(99,102,241,0.08);
+  color: #6366f1;
+  border-color: #6366f1;
+}
+
+/* ── Combobox integration styles ─────────────────────────────────────────── */
+/* Product search combobox in catalog toolbar */
+.product-combobox { width: 100%; }
+.product-combobox :deep(.cb-trigger) {
+  background: var(--pos-bg-surface2, #f8fafc);
+  border-color: var(--pos-border, #e2e8f0);
+  border-radius: 12px;
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+}
+.product-combobox :deep(.cb-display-text) { font-size: 0.875rem; color: var(--pos-text-secondary, #64748b); }
+.product-combobox :deep(.cb-focus) { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1); }
+
+/* Member combobox in checkout sidebar payment section */
+.member-combobox { width: 100%; }
+.member-combobox :deep(.cb-trigger) {
+  background: var(--pos-bg-surface2, #f8fafc);
+  border-color: var(--pos-border, #e2e8f0);
+  border-radius: 10px;
+  min-height: 40px;
+  padding: 0.5rem 0.875rem;
+}
+.member-combobox :deep(.cb-display-text) { font-size: 0.825rem; }
 </style>

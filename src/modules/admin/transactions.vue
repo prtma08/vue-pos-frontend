@@ -21,10 +21,8 @@
         <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari ID, kasir, member..."/>
       </div>
       <select v-model="store.paymentFilter" class="input-field filter-select">
-        <option value="">Semua Metode</option>
+        <option value="">Semua</option>
         <option value="CASH">Cash</option>
-        <option value="TRANSFER">Transfer</option>
-        <option value="QRIS">QRIS</option>
       </select>
       <input v-model="store.dateFrom" class="input-field date-input" type="date" title="Dari tanggal"/>
       <input v-model="store.dateTo" class="input-field date-input" type="date" title="Sampai tanggal"/>
@@ -171,8 +169,8 @@ onMounted(() => store.fetchAll())
 const fmt = (n) => (n ?? 0).toLocaleString('id-ID')
 const openDetail = (tx) => { detailTx.value = tx }
 
-const paymentLabel = (m) => ({ CASH: '💵 Cash', TRANSFER: '🏦 Transfer', QRIS: '📱 QRIS' }[m] || m)
-const paymentClass = (m) => ({ CASH: 'pay-cash', TRANSFER: 'pay-transfer', QRIS: 'pay-qris' }[m] || '')
+const paymentLabel = (m) => ({ CASH: '💵 Cash' }[m] || '💵 Cash')
+const paymentClass = (m) => 'pay-cash'
 
 const clearFilters = () => {
   store.searchTerm = ''

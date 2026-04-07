@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import apiClient from '@/api/client'
 import { useAuthStore } from './auth'
 import { useProductsStore } from './products'
+import { useShiftStore } from './shift'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
@@ -166,7 +167,14 @@ export const useCartStore = defineStore('cart', () => {
       const existing = order.items[existingIndex]
       existing.quantity += 1
       existing.subtotal = Math.round(existing.price * existing.quantity * 100) / 100
-      useProductsStore().reserveStock(productData.id, 1)
+      // E2 FIX: For bundles, reserve each component's stock; for regulars reserve own stock
+      if (isBundle && existing.bundleItems) {
+        for (const comp of existing.bundleItems) {
+          useProductsStore().reserveStock(comp.productId, comp.qty || 1)
+        }
+      } else {
+        useProductsStore().reserveStock(productData.id, 1)
+      }
     } else {
       // FIX BUG-2: No per-item discount field — use order-level discountPercent only
       order.items.push({
@@ -180,7 +188,14 @@ export const useCartStore = defineStore('cart', () => {
         isBundle,
         bundleItems: isBundle ? productData.bundleItems : undefined,
       })
-      useProductsStore().reserveStock(productData.id, 1)
+      // E2 FIX: For bundles, reserve each component's stock; for regulars reserve own stock
+      if (isBundle && productData.bundleItems) {
+        for (const comp of productData.bundleItems) {
+          useProductsStore().reserveStock(comp.productId, comp.qty || 1)
+        }
+      } else {
+        useProductsStore().reserveStock(productData.id, 1)
+      }
     }
 
     order.lastModified = new Date().toISOString()
@@ -197,7 +212,14 @@ export const useCartStore = defineStore('cart', () => {
     }
 
     const item = order.items[itemIndex]
-    useProductsStore().releaseReservedStock(item.productId, item.quantity)
+    // E2 FIX: Release component stocks for bundles
+    if (item.isBundle && item.bundleItems) {
+      for (const comp of item.bundleItems) {
+        useProductsStore().releaseReservedStock(comp.productId, (comp.qty || 1) * item.quantity)
+      }
+    } else {
+      useProductsStore().releaseReservedStock(item.productId, item.quantity)
+    }
     order.items.splice(itemIndex, 1)
     order.lastModified = new Date().toISOString()
     updateOrderSummary(orderId)
@@ -218,8 +240,16 @@ export const useCartStore = defineStore('cart', () => {
 
     const item = order.items[itemIndex]
     const diff = quantity - item.quantity
-    if (diff > 0) useProductsStore().reserveStock(item.productId, diff)
-    else if (diff < 0) useProductsStore().releaseReservedStock(item.productId, Math.abs(diff))
+    // E2 FIX: Reserve/release component stocks for bundles
+    if (item.isBundle && item.bundleItems) {
+      for (const comp of item.bundleItems) {
+        if (diff > 0) useProductsStore().reserveStock(comp.productId, (comp.qty || 1) * diff)
+        else if (diff < 0) useProductsStore().releaseReservedStock(comp.productId, (comp.qty || 1) * Math.abs(diff))
+      }
+    } else {
+      if (diff > 0) useProductsStore().reserveStock(item.productId, diff)
+      else if (diff < 0) useProductsStore().releaseReservedStock(item.productId, Math.abs(diff))
+    }
 
     item.quantity = quantity
     // FIX BUG-2: No per-item discount — subtotal is price * quantity
@@ -426,6 +456,9 @@ export const useCartStore = defineStore('cart', () => {
       order.metadata.transactionId = mockTransactionId
       persistToStorage()
 
+      // B7 FIX: Record transaction in active shift so totalSales is accurate
+      try { useShiftStore().recordTransaction(mockTransactionId, order.summary.total) } catch { /* shift may not be open */ }
+
       console.log(`[Mock] Transaksi berhasil! ID: ${mockTransactionId}`)
       return { success: true, transactionId: mockTransactionId }
     }
@@ -453,6 +486,9 @@ export const useCartStore = defineStore('cart', () => {
       order.metadata.submittedAt = new Date().toISOString()
       order.metadata.transactionId = response.data?.id || response.data?.data?.id
       persistToStorage()
+
+      // B7 FIX: Record transaction in active shift so totalSales is accurate
+      try { useShiftStore().recordTransaction(order.metadata.transactionId, order.summary.total) } catch { /* shift may not be open */ }
 
       return { success: true, transactionId: order.metadata.transactionId }
     } catch (err) {

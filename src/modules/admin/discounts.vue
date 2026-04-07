@@ -95,6 +95,14 @@
                   <input v-model="form.endDate" class="input-field" type="date" required/>
                 </div>
               </div>
+              <div class="form-group">
+                <label class="form-label">Status</label>
+                <div class="status-row">
+                  <button type="button" class="status-toggle" :class="form.isActive ? 'active' : 'inactive'" @click="form.isActive = !form.isActive">
+                    {{ form.isActive ? 'Aktif' : 'Nonaktif' }}
+                  </button>
+                </div>
+              </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
@@ -137,7 +145,7 @@ const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
-const form = reactive({ name: '', type: 'PERCENTAGE', value: 0, target: 'TRANSACTION', startDate: '', endDate: '' })
+const form = reactive({ name: '', type: 'PERCENTAGE', value: 0, target: 'TRANSACTION', startDate: '', endDate: '', isActive: true })
 
 onMounted(() => store.fetchAll())
 
@@ -146,7 +154,7 @@ const formatDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('id-I
 const openModal = (d = null) => {
   editTarget.value = d
   formError.value = ''
-  Object.assign(form, { name: d?.name || '', type: d?.type || 'PERCENTAGE', value: d?.value || 0, target: d?.target || 'TRANSACTION', startDate: d?.startDate || '', endDate: d?.endDate || '' })
+  Object.assign(form, { name: d?.name || '', type: d?.type || 'PERCENTAGE', value: d?.value || 0, target: d?.target || 'TRANSACTION', startDate: d?.startDate || '', endDate: d?.endDate || '', isActive: d?.isActive !== false })
   showModal.value = true
 }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
@@ -266,4 +274,10 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 
 .table-row { animation: fadeIn 0.4s ease forwards; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Status Row & Toggle ── */
+.status-row { display: flex; align-items: center; }
+.status-toggle { padding: 0.5rem 1.25rem; border-radius: 999px; border: none; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.status-toggle.active { background: rgba(5,150,105,0.12); color: #059669; }
+.status-toggle.inactive { background: rgba(100,116,139,0.12); color: #64748b; }
 </style>

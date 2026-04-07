@@ -16,7 +16,7 @@
     <div class="toolbar">
       <div class="search-wrap">
         <svg class="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari nama, telepon, email..."/>
+        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari nama atau telepon..."/>
       </div>
     </div>
 
@@ -31,15 +31,14 @@
             <th>#</th>
             <th>Nama Member</th>
             <th>Telepon</th>
-            <th>Email</th>
-            <th>Poin</th>
+            <th>Status</th>
             <th>Bergabung</th>
             <th>Aksi</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="store.filtered.length === 0">
-            <td colspan="7" class="empty-row">Tidak ada member ditemukan.</td>
+            <td colspan="6" class="empty-row">Tidak ada member ditemukan.</td>
           </tr>
           <tr v-for="(m, i) in store.filtered" :key="m.id" class="table-row">
             <td class="col-idx">{{ i + 1 }}</td>
@@ -50,11 +49,9 @@
               </div>
             </td>
             <td><a :href="`tel:${m.phone}`" class="link-phone">{{ m.phone }}</a></td>
-            <td class="col-email">{{ m.email || '—' }}</td>
             <td>
-              <span class="points-badge">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="var(--warning)" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                {{ m.points ?? 0 }}
+              <span class="status-badge" :class="m.isActive !== false ? 'badge-active' : 'badge-inactive'">
+                {{ m.isActive !== false ? 'Aktif' : 'Nonaktif' }}
               </span>
             </td>
             <td class="col-date">{{ formatDate(m.createdAt) }}</td>
@@ -86,12 +83,14 @@
                 <input v-model="form.phone" class="input-field" type="tel" placeholder="08xxxxxxxxxx" required/>
               </div>
               <div class="form-group">
-                <label class="form-label">Email</label>
-                <input v-model="form.email" class="input-field" type="email" placeholder="email@contoh.com"/>
-              </div>
-              <div v-if="editTarget" class="form-group">
-                <label class="form-label">Poin Reward</label>
-                <input v-model.number="form.points" class="input-field" type="number" min="0"/>
+                <label class="form-label">Status Member</label>
+                <div class="status-toggle-wrap">
+                  <label class="toggle-label">
+                    <input type="checkbox" v-model="form.isActive" class="toggle-input"/>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">{{ form.isActive ? 'Aktif' : 'Nonaktif' }}</span>
+                  </label>
+                </div>
               </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
@@ -141,7 +140,7 @@ const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
-const form = reactive({ name: '', phone: '', email: '', points: 0 })
+const form = reactive({ name: '', phone: '', isActive: true })
 
 onMounted(() => store.fetchMembers())
 
@@ -153,15 +152,14 @@ const formatDate = (iso) => {
 const openModal = (m = null) => {
   editTarget.value = m
   formError.value = ''
-  Object.assign(form, { name: m?.name || '', phone: m?.phone || '', email: m?.email || '', points: m?.points ?? 0 })
+  Object.assign(form, { name: m?.name || '', phone: m?.phone || '', isActive: m?.isActive !== false })
   showModal.value = true
 }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
 
 const handleSubmit = async () => {
   formError.value = ''
-  const payload = { name: form.name.trim(), phone: form.phone.trim(), email: form.email.trim() || null }
-  if (editTarget.value) payload.points = form.points
+  const payload = { name: form.name.trim(), phone: form.phone.trim(), isActive: form.isActive }
   const result = editTarget.value
     ? await store.update(editTarget.value.id, payload)
     : await store.add(payload)
@@ -511,16 +509,6 @@ const handleDelete = async () => {
   font-family: 'JetBrains Mono', monospace;
 }
 
-.col-email {
-  color: #64748b;
-  font-size: 0.85rem;
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: -0.01em;
-}
-
-.module-page[data-theme="dark"] .col-email {
-  color: #94a3b8;
-}
 
 .col-date {
   color: #94a3b8;
@@ -617,32 +605,36 @@ const handleDelete = async () => {
   width: 100%;
 }
 
-/* ── ✦ Points Badge ─────────────────────────────────────────────── */
-.points-badge {
+/* ── ✦ Status Badge ─────────────────────────────────────────────── */
+.status-badge {
   display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.08) 100%);
-  color: #b45309;
-  padding: 0.4375rem 0.9375rem;
+  padding: 0.35rem 0.875rem;
   border-radius: 999px;
-  font-size: 0.775rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  border: 1.5px solid rgba(217, 119, 6, 0.25);
-  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.08);
-  transition: all 0.2s;
 }
+.badge-active { background: rgba(5,150,105,0.12); color: #059669; }
+.badge-inactive { background: rgba(100,116,139,0.12); color: #64748b; }
 
-.points-badge:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.15);
+/* ── ✦ Toggle Switch ────────────────────────────────────────────── */
+.status-toggle-wrap { display: flex; align-items: center; }
+.toggle-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; user-select: none; }
+.toggle-input { display: none; }
+.toggle-slider {
+  width: 44px; height: 24px; background: #e2e8f0; border-radius: 999px;
+  position: relative; transition: background 0.2s;
 }
-
-.module-page[data-theme="dark"] .points-badge {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(217, 119, 6, 0.12) 100%);
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.35);
+.toggle-slider::after {
+  content: ''; position: absolute; left: 3px; top: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
 }
+.toggle-input:checked + .toggle-slider { background: #6366f1; }
+.toggle-input:checked + .toggle-slider::after { transform: translateX(20px); }
+.toggle-text { font-size: 0.875rem; font-weight: 600; color: #475569; }
+.module-page[data-theme="dark"] .toggle-text { color: #cbd5e1; }
+.module-page[data-theme="dark"] .toggle-slider { background: #334155; }
 
 /* ── ✦ Action Buttons ───────────────────────────────────────────── */
 .action-btn {

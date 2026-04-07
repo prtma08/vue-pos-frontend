@@ -79,6 +79,7 @@
             <th class="th-category">Kategori</th>
             <th class="th-price">Harga Jual</th>
             <th class="th-hpp">HPP</th>
+            <th class="th-margin">Margin</th>
             <th class="th-stock">Stok</th>
             <th class="th-status">Status</th>
             <th class="th-actions">Aksi</th>
@@ -86,7 +87,7 @@
         </thead>
         <tbody>
           <tr v-if="store.filteredProducts.length === 0">
-            <td colspan="8" class="empty-row">
+            <td colspan="9" class="empty-row">
               <div class="empty-visual">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -110,8 +111,22 @@
             </td>
             <td><code class="sku-code">{{ product.sku || '—' }}</code></td>
             <td><span class="cat-chip">{{ product.category?.name || '—' }}</span></td>
-            <td class="col-price">Rp {{ fmt(product.sellingPrice) }}</td>
-            <td class="col-hpp">Rp {{ fmt(product.hpp) }}</td>
+            <td class="col-price">
+              <div class="price-cell">
+                <span>Rp {{ fmt(store.getActivePrice(product.id)?.price ?? product.sellingPrice) }}</span>
+              </div>
+            </td>
+            <td class="col-hpp">
+              <span :class="product.hpp > (product.sellingPrice ?? product.price ?? 0) ? 'hpp-loss' : ''">
+                Rp {{ fmt(product.hpp) }}
+              </span>
+            </td>
+            <!-- C7: Margin column -->
+            <td class="col-margin">
+              <span class="margin-pill" :class="marginClass(store.profitMargin(product.id))">
+                {{ store.profitMargin(product.id) }}%
+              </span>
+            </td>
             <td class="col-stock"><span :class="stockClass(product)" class="stock-value">{{ product.stock }}</span></td>
             <td>
               <span class="status-badge" :class="stockBadgeClass(product)">
@@ -186,10 +201,15 @@
                     Kategori
                     <span class="required">*</span>
                   </label>
-                  <select v-model="form.categoryId" class="input-field select-field" required>
-                    <option value="">-- Pilih Kategori --</option>
-                    <option v-for="cat in store.categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-                  </select>
+                  <AppCombobox
+                    v-model="form.categoryId"
+                    :options="store.categories"
+                    option-key="id"
+                    option-label="name"
+                    placeholder="-- Pilih Kategori --"
+                    search-placeholder="Cari kategori..."
+                    :clearable="false"
+                  />
                 </div>
                 <div class="form-group">
                   <label class="form-label">
@@ -209,17 +229,14 @@
                   </div>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">HPP / Modal (Rp)</label>
-                  <div class="input-with-prefix">
-                    <span class="prefix">Rp</span>
-                    <input 
-                      v-model.number="form.hpp" 
-                      class="input-field" 
-                      type="number" 
-                      min="0" 
-                      placeholder="12000" 
-                    />
-                  </div>
+                  <label class="form-label">Upload Gambar</label>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    class="input-field input-file" 
+                    @change="onImageChange"
+                  />
+                  <span class="field-hint" v-if="form.imagePreview">Gambar dipilih ✓</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">
@@ -248,30 +265,7 @@
                 </div>
               </div>
               
-              <!-- Profit Preview -->
-              <div v-if="form.price && form.hpp" class="profit-preview">
-                <div class="preview-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-                  </svg>
-                </div>
-                <div class="preview-content">
-                  <span class="preview-label">Estimasi Profit per Unit</span>
-                  <span class="preview-value">Rp {{ fmt(form.price - form.hpp) }} <span class="preview-percent">({{ profitPct }}%)</span></span>
-                </div>
-              </div>
 
-              <!-- Loss Alert -->
-              <div v-if="form.price && form.hpp && form.price < form.hpp" class="loss-alert">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-                <div class="loss-alert-text">
-                  <strong>Peringatan Rugi!</strong>
-                  <span>Harga jual (Rp {{ fmt(form.price) }}) lebih rendah dari HPP (Rp {{ fmt(form.hpp) }}). Anda akan mengalami kerugian Rp {{ fmt(form.hpp - form.price) }} per unit.</span>
-                </div>
-              </div>
               
               <div v-if="formError" class="form-error">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -373,9 +367,9 @@
 </template>
 
 <script setup>
-// ── Script remains UNCHANGED ──
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useProductsStore } from '@/stores/products'
+import AppCombobox from '@/components/AppCombobox.vue'
 
 const store = useProductsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
@@ -387,17 +381,21 @@ const formError = ref('')
 const priceHistoryTarget = ref(null)
 const priceHistoryList = ref([])
 
-const form = reactive({ name: '', sku: '', categoryId: '', price: null, hpp: null, stock: null, lowStockThreshold: 10 })
+const form = reactive({ name: '', sku: '', categoryId: '', price: null, stock: null, lowStockThreshold: 10, imageFile: null, imagePreview: false })
 
 onMounted(async () => {
   await Promise.all([store.fetchProducts(), store.fetchCategories()])
 })
 
 const fmt = (n) => (n ?? 0).toLocaleString('id-ID')
-const profitPct = computed(() => {
-  if (!form.price || form.price <= 0) return 0
-  return Math.round(((form.price - (form.hpp || 0)) / form.price) * 100)
-})
+
+const onImageChange = (e) => {
+  const file = e.target.files?.[0]
+  if (file) {
+    form.imageFile = file
+    form.imagePreview = true
+  }
+}
 
 const productEmoji = (p) => {
   const cat = p.category?.name?.toLowerCase() || ''
@@ -414,9 +412,9 @@ const openModal = (product = null) => {
   editTarget.value = product
   formError.value = ''
   if (product) {
-    Object.assign(form, { name: product.name, sku: product.sku || '', categoryId: product.categoryId || '', price: product.sellingPrice ?? product.price, hpp: product.hpp || 0, stock: product.stock, lowStockThreshold: product.lowStockThreshold ?? 10 })
+    Object.assign(form, { name: product.name, sku: product.sku || '', categoryId: product.categoryId || '', price: product.sellingPrice ?? product.price, stock: product.stock, lowStockThreshold: product.lowStockThreshold ?? 10, imageFile: null, imagePreview: false })
   } else {
-    Object.assign(form, { name: '', sku: '', categoryId: '', price: null, hpp: null, stock: null, lowStockThreshold: 10 })
+    Object.assign(form, { name: '', sku: '', categoryId: '', price: null, stock: null, lowStockThreshold: 10, imageFile: null, imagePreview: false })
   }
   showModal.value = true
 }
@@ -427,13 +425,18 @@ const handleSubmit = async () => {
   formError.value = ''
   const payload = {
     name: form.name.trim(), sku: form.sku.trim(), categoryId: form.categoryId,
-    price: form.price, hpp: form.hpp || 0, stock: form.stock ?? 0,
+    price: form.price, stock: form.stock ?? 0,
     lowStockThreshold: form.lowStockThreshold ?? 10,
   }
+  if (form.imageFile) payload.imageFile = form.imageFile
   const result = editTarget.value
     ? await store.updateProduct(editTarget.value.id, payload)
     : await store.addProduct(payload)
-  if (result.success) { closeModal() } else { formError.value = result.message }
+  if (result.success) {
+    closeModal()
+  } else {
+    formError.value = result.message
+  }
 }
 
 const confirmDelete = (product) => { deleteTarget.value = product }
@@ -457,9 +460,43 @@ const openPriceHistory = (product) => {
   priceHistoryTarget.value = product
   priceHistoryList.value = store.getPriceHistory(product.id)
 }
+
+// C7: Margin classification helper
+const marginClass = (pct) => {
+  if (pct >= 25) return 'margin-good'
+  if (pct >= 10) return 'margin-moderate'
+  return 'margin-low'
+}
+
 </script>
 
 <style scoped>
+/* C7: Margin pill */
+.col-margin { text-align: center; }
+.margin-pill {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.margin-good { background: rgba(5,150,105,0.12); color: #059669; }
+.margin-moderate { background: rgba(217,119,6,0.12); color: #d97706; }
+.margin-low { background: rgba(220,38,38,0.12); color: #dc2626; }
+
+/* C8: Active price badge + HPP loss */
+.price-cell { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.price-active-badge {
+  font-size: 0.63rem;
+  font-weight: 700;
+  padding: 0.15rem 0.4rem;
+  border-radius: 20px;
+  background: rgba(5,150,105,0.12);
+  color: #059669;
+  letter-spacing: 0.03em;
+}
+.hpp-loss { color: #dc2626; font-weight: 700; }
+
 /* ── CSS Variables: Fixed Contrast & Color Hierarchy ───────────────────── */
 .module-page {
   /* Surface Colors - Proper Hierarchy */
@@ -1665,7 +1702,26 @@ const openPriceHistory = (product) => {
 .h-prev { font-size: 0.75rem; color: var(--text-tertiary); }
 .h-date { font-size: 0.72rem; color: var(--text-tertiary); }
 
-/* Action Button: History */
 .action-btn.history { color: #6366f1; }
 .action-btn.history:hover { background: rgba(99,102,241,0.12); }
+
+/* ── Input File & Field Hint ── */
+.input-file {
+  padding: 0.625rem 0.875rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+.input-file::-webkit-file-upload-button {
+  padding: 0.35rem 0.875rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 0.75rem;
+}
+.field-hint { font-size: 0.78rem; color: var(--success, #059669); font-weight: 500; }
 </style>

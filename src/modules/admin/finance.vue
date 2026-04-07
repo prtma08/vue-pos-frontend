@@ -248,7 +248,7 @@
                 <tr>
                   <th class="col-period">Periode</th>
                   <th class="col-numeric">Revenue</th>
-                  <th class="col-numeric col-cost">Modal (HPP)</th>
+                  <th class="col-numeric col-cost">HPP</th>
                   <th class="col-numeric col-profit">Laba Kotor</th>
                   <th class="col-numeric col-margin">Margin</th>
                   <th class="col-center">Unit Terjual</th>
