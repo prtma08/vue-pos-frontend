@@ -80,6 +80,16 @@
             </svg>
             Tutup Shift
           </button>
+
+          <!-- Supervisor Override Topbar Trigger -->
+          <button class="btn-sv-override" @click="showSupervisorPanel = true" :class="{ 'sv-active': supervisorUnlocked }" title="Supervisor Override">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              <circle cx="12" cy="16" r="1" fill="currentColor"/>
+            </svg>
+            <span v-if="supervisorUnlocked" class="sv-indicator">🔓 {{ supervisorName }}</span>
+            <span v-else>🔐 Override</span>
+          </button>
         </div>
       </div>
     </header>
@@ -201,7 +211,7 @@
                 <span class="qty-num">{{ item.quantity }}</span>
                 <button class="qty-inc" @click="adjustQty(index, 1)">+</button>
                 <span class="row-total">Rp {{ formatCurrency(item.subtotal) }}</span>
-                <button class="row-edit-price" @click="promptPriceChange(index)" title="Ubah Harga">
+                <button v-if="supervisorUnlocked" class="row-edit-price" @click="promptPriceChange(index)" title="Ubah Harga">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -216,49 +226,30 @@
             </div>
           </div>
 
-          <!-- B3: Payment Method Selector -->
+          <!-- ── Pembayaran: Cash Only ── -->
           <div class="payment-section">
-            <span class="section-label">💳 Metode Pembayaran</span>
-            <div class="payment-method-pills">
-              <button
-                v-for="m in paymentMethods" :key="m.value"
-                class="pay-pill"
-                :class="{ 'is-active': activeOrder.paymentMethod === m.value }"
-                @click="cartStore.setPaymentMethod(cartStore.activeOrderId, m.value)"
-              >
-                <span>{{ m.icon }}</span> {{ m.label }}
-              </button>
+            <span class="section-label">💵 Pembayaran Tunai</span>
+            <div class="cash-input-row">
+              <span class="cash-prefix">Rp</span>
+              <input
+                v-model="cashInputFormatted"
+                type="text"
+                inputmode="numeric"
+                placeholder="Masukkan uang diterima"
+                class="cash-input"
+                @input="formatCashInput"
+              />
             </div>
-
-            <!-- Cash input only for CASH method -->
-            <template v-if="activeOrder.paymentMethod === 'CASH' || !activeOrder.paymentMethod">
-              <div class="cash-input-row">
-                <span class="cash-prefix">Rp</span>
-                <input
-                  v-model="cashInputFormatted"
-                  type="text"
-                  inputmode="numeric"
-                  placeholder="Masukkan uang diterima"
-                  class="cash-input"
-                  @input="formatCashInput"
-                />
-              </div>
-              <div class="quick-cash">
-                <button type="button" v-for="amt in quickCashAmounts" :key="amt" class="quick-cash-btn" @click="setQuickCash(amt)">{{ formatCurrency(amt) }}</button>
-                <button type="button" class="quick-cash-btn exact" @click="setQuickCash(activeOrder.summary.total)">Uang Pas</button>
-              </div>
-              <div v-if="changeAmount > 0" class="change-display">
-                <span>Kembalian</span>
-                <span class="change-value">Rp {{ formatCurrency(changeAmount) }}</span>
-              </div>
-              <div v-if="cashInputRaw > 0 && cashInputRaw < activeOrder.summary.total" class="cash-warning">
-                ⚠️ Uang kurang Rp {{ formatCurrency(activeOrder.summary.total - cashInputRaw) }}
-              </div>
-            </template>
-            <!-- Non-cash: confirm message -->
-            <div v-else class="noncash-confirm">
-              <span v-if="activeOrder.paymentMethod === 'QRIS'">📱 Bayar via QRIS — konfirmasi setelah scan</span>
-              <span v-else-if="activeOrder.paymentMethod === 'TRANSFER'">🏦 Bayar via Transfer — konfirmasi setelah transfer berhasil</span>
+            <div class="quick-cash">
+              <button type="button" v-for="amt in quickCashAmounts" :key="amt" class="quick-cash-btn" @click="setQuickCash(amt)">{{ formatCurrency(amt) }}</button>
+              <button type="button" class="quick-cash-btn exact" @click="setQuickCash(activeOrder.summary.total)">Uang Pas</button>
+            </div>
+            <div v-if="changeAmount > 0" class="change-display">
+              <span>Kembalian</span>
+              <span class="change-value">Rp {{ formatCurrency(changeAmount) }}</span>
+            </div>
+            <div v-if="cashInputRaw > 0 && cashInputRaw < activeOrder.summary.total" class="cash-warning">
+              ⚠️ Uang kurang Rp {{ formatCurrency(activeOrder.summary.total - cashInputRaw) }}
             </div>
           </div>
 
@@ -300,7 +291,7 @@
           </div>
 
           <div class="order-discount-action">
-            <button class="btn-discount" @click="promptDiscount" title="Berikan diskon untuk seluruh order">
+            <button v-if="supervisorUnlocked" class="btn-discount" @click="promptDiscount" title="Berikan diskon untuk seluruh order">
               <span class="disc-icon">%</span> Beri Diskon Khusus
             </button>
             <!-- B4: Auto-suggest active discounts -->
@@ -351,13 +342,11 @@
           <button
             class="btn-checkout"
             @click="handleSubmitOrder"
-            :disabled="submitting || !activeOrder.items.length || (activeOrder.paymentMethod === 'CASH' || !activeOrder.paymentMethod) && cashInputRaw < activeOrder.summary.total"
+            :disabled="submitting || !activeOrder.items.length || cashInputRaw < activeOrder.summary.total"
           >
             <span v-if="submitting" class="btn-loader"></span>
-            <span v-else class="btn-icon">
-              {{ activeOrder.paymentMethod === 'QRIS' ? '📱' : activeOrder.paymentMethod === 'TRANSFER' ? '🏦' : '💵' }}
-            </span>
-            <span class="btn-label">{{ submitting ? 'Memproses...' : 'Bayar ' + (activeOrder.paymentMethod || 'Tunai') }}</span>
+            <span v-else class="btn-icon">💵</span>
+            <span class="btn-label">{{ submitting ? 'Memproses...' : 'Bayar Tunai' }}</span>
             <span class="btn-total">{{ formatCurrency(activeOrder.summary.total) }}</span>
           </button>
         </div>
@@ -392,6 +381,95 @@
 
       </aside>
     </div>
+
+    <!-- ── Modal Struk Transaksi ──────────────────────────────────────── -->
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div v-if="showStruk" class="struk-overlay" @click.self="closeStruk">
+          <div class="struk-box" ref="strukPrintRef">
+            <div class="struk-header">
+              <div class="struk-brand">🧾 Nextore POS</div>
+              <div class="struk-meta">
+                <span>{{ strukData.date }}</span>
+                <span v-if="authStore.posDevice">{{ authStore.posDevice.name }}</span>
+              </div>
+              <div class="struk-cashier">Kasir: {{ authStore.user?.name }}</div>
+            </div>
+            <div class="struk-divider">────────────────────</div>
+            <div class="struk-items">
+              <div v-for="item in strukData.items" :key="item.productId" class="struk-item">
+                <span class="struk-item-name">{{ item.name }}</span>
+                <span class="struk-item-detail">{{ item.quantity }}x Rp {{ fmt(item.price) }}</span>
+                <span class="struk-item-sub">Rp {{ fmt(item.subtotal) }}</span>
+              </div>
+            </div>
+            <div class="struk-divider">────────────────────</div>
+            <div class="struk-summary">
+              <div class="struk-row">
+                <span>Subtotal</span>
+                <span>Rp {{ fmt(strukData.subtotal) }}</span>
+              </div>
+              <div v-if="(strukData.discountPercent || 0) > 0" class="struk-row struk-discount">
+                <span>Diskon ({{ strukData.discountPercent }}%)</span>
+                <span>− Rp {{ fmt(strukData.subtotal * strukData.discountPercent / 100) }}</span>
+              </div>
+              <div class="struk-row struk-total">
+                <span>TOTAL</span>
+                <span>Rp {{ fmt(strukData.total) }}</span>
+              </div>
+              <div class="struk-divider">────────────────────</div>
+              <div class="struk-row">
+                <span>Uang Tunai</span>
+                <span>Rp {{ fmt(strukData.cash) }}</span>
+              </div>
+              <div class="struk-row struk-change">
+                <span>Kembalian</span>
+                <span>Rp {{ fmt(strukData.change) }}</span>
+              </div>
+            </div>
+            <div class="struk-divider">────────────────────</div>
+            <div class="struk-footer">Terima kasih sudah berbelanja! 🙏</div>
+            <div class="struk-actions no-print">
+              <button class="struk-btn-print" @click="printStruk">🖨️ Cetak Struk</button>
+              <button class="struk-btn-close" @click="closeStruk">Selesai</button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
+
+    <!-- ── Supervisor Override Topbar Modal ──────────────────────────── -->
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div v-if="showSupervisorPanel" class="modal-overlay-sv" @click.self="showSupervisorPanel = false">
+          <div class="sv-panel">
+            <div class="sv-header">
+              <span class="sv-title">🔐 Supervisor Override</span>
+              <button class="sv-close" @click="showSupervisorPanel = false">×</button>
+            </div>
+            <div v-if="!supervisorUnlocked" class="sv-form">
+              <div class="sv-form-group">
+                <label class="sv-label">Pilih Supervisor</label>
+                <select v-model="svSelectedId" class="sv-select">
+                  <option value="">-- Pilih supervisor --</option>
+                  <option v-for="s in supervisorList" :key="s.id" :value="s.id">{{ s.name }} ({{ s.username }})</option>
+                </select>
+              </div>
+              <div class="sv-form-group">
+                <label class="sv-label">Password</label>
+                <input v-model="svPassword" type="password" class="sv-input" placeholder="Password supervisor" @keyup.enter="verifySupervisor"/>
+              </div>
+              <div v-if="svError" class="sv-error">{{ svError }}</div>
+              <button class="sv-btn-verify" @click="verifySupervisor" :disabled="!svSelectedId || !svPassword">Verifikasi</button>
+            </div>
+            <div v-else class="sv-unlocked">
+              <div class="sv-unlocked-info">🔓 <strong>{{ supervisorName }}</strong> aktif — edit harga & diskon terbuka</div>
+              <button class="sv-btn-lock" @click="lockSupervisor">🔒 Kembali ke Kasir (Kunci)</button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -409,20 +487,18 @@ import { useShiftStore }   from '@/stores/shift'
 import { useDiscountsStore } from '@/stores/discounts'  // B4
 import { useRouter }       from 'vue-router'
 
+import { useStaffStore } from '@/stores/staff'
+
 const authStore     = useAuthStore()
 const productsStore = useProductsStore()
 const cartStore     = useCartStore()
 const membersStore  = useMembersStore()
 const shiftStore    = useShiftStore()
 const discountsStore = useDiscountsStore()  // B4
+const staffStore    = useStaffStore()
 const router        = useRouter()
 
-// B3: Payment Method options
-const paymentMethods = [
-  { value: 'CASH', label: 'Tunai', icon: '💵' },
-  { value: 'QRIS', label: 'QRIS', icon: '📱' },
-  { value: 'TRANSFER', label: 'Transfer', icon: '🏦' },
-]
+// Cash Only — tidak ada pilihan metode pembayaran lain
 
 const searchTerm    = ref('')
 const searchInputRef = ref(null)  // D3: barcode scanner autofocus (legacy ref kept for onMounted)
@@ -504,7 +580,100 @@ const setQuickCash = (amt) => {
 watch(activeOrder, () => {
   cashInputFormatted.value = ''
   cashInputRaw.value = 0
+  // Lock supervisor override when order changes
+  if (supervisorUnlocked.value) lockSupervisor()
 })
+
+// ── Struk Modal State ──────────────────────────────────────────────────
+const showStruk = ref(false)
+const strukPrintRef = ref(null)
+const strukData = ref({
+  date: '', cashier: '', items: [], subtotal: 0, discountPercent: 0,
+  total: 0, cash: 0, change: 0,
+})
+
+const fmt = (v) => Math.round(v || 0).toLocaleString('id-ID')
+
+const openStruk = (order, cash, change) => {
+  strukData.value = {
+    date: new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    cashier: authStore.user?.name || 'Kasir',
+    items: order.items.map(i => ({ ...i })),
+    subtotal: order.summary.subtotal,
+    discountPercent: order.summary.discountPercent || 0,
+    total: order.summary.total,
+    cash,
+    change,
+  }
+  showStruk.value = true
+}
+
+const closeStruk = () => { showStruk.value = false }
+
+const printStruk = () => {
+  const printContent = strukPrintRef.value?.innerHTML
+  if (!printContent) return
+  const win = window.open('', '_blank', 'width=400,height=600')
+  win.document.write(`<html><head><title>Struk</title><style>
+    body { font-family: monospace; font-size: 12px; width: 300px; margin: 0 auto; }
+    .struk-divider { color: #999; margin: 4px 0; }
+    .struk-row { display: flex; justify-content: space-between; }
+    .struk-total { font-weight: bold; font-size: 14px; }
+    .struk-change { font-weight: bold; color: green; }
+    .struk-discount { color: red; }
+    .struk-item { margin: 2px 0; }
+    .struk-item-name { font-weight: 600; }
+    .struk-item-detail { color: #555; }
+    .struk-footer { text-align: center; margin-top: 8px; }
+    .no-print { display: none; }
+  </style></head><body>${printContent}</body></html>`)
+  win.document.close()
+  win.print()
+  win.close()
+}
+
+// ── Supervisor Override State ────────────────────────────────────────
+const showSupervisorPanel = ref(false)
+const supervisorUnlocked = ref(false)
+const supervisorName = ref('')
+const svSelectedId = ref('')
+const svPassword = ref('')
+const svError = ref('')
+
+const MOCK_SV_PASSWORDS = {
+  'mock-user-2': 'supervisor123',
+  'mock-user-1': 'admin123',
+  'mock-user-5': 'super123',
+}
+
+// Supervisors list dari staffStore (filter SUPERVISOR + ADMIN)
+const supervisorList = computed(() =>
+  staffStore.staff.filter(s => s.role === 'SUPERVISOR' || s.role === 'ADMIN')
+)
+
+const verifySupervisor = () => {
+  svError.value = ''
+  const sv = supervisorList.value.find(s => s.id === svSelectedId.value)
+  if (!sv) { svError.value = 'Supervisor tidak ditemukan'; return }
+  const correctPw = MOCK_SV_PASSWORDS[svSelectedId.value]
+  if (!correctPw || svPassword.value !== correctPw) {
+    svError.value = 'Password salah. Coba lagi.'
+    return
+  }
+  supervisorUnlocked.value = true
+  supervisorName.value = sv.name
+  svPassword.value = ''
+  svError.value = ''
+  showSupervisorPanel.value = false
+}
+
+const lockSupervisor = () => {
+  supervisorUnlocked.value = false
+  supervisorName.value = ''
+  svSelectedId.value = ''
+  svPassword.value = ''
+  svError.value = ''
+}
 
 const productEmoji = (p) => {
   const cat = p.category?.name?.toLowerCase() || ''
@@ -658,15 +827,22 @@ const handleSubmitOrder = async () => {
     return
   }
   submitting.value = true
+  // Snapshot data order sebelum di-clear untuk struk
+  const orderSnapshot = JSON.parse(JSON.stringify(activeOrder.value))
+  const cashSnapshot = cashInputRaw.value
+  const changeSnapshot = changeAmount.value
   try {
     const result = await cartStore.submitOrder(cartStore.activeOrderId)
     if (result.success) {
       // Record transaction to shift
-      shiftStore.recordTransaction(result.transactionId, activeOrder.value.summary.total)
-      successMsg.value = `Transaksi berhasil! Kembalian: Rp ${formatCurrency(changeAmount.value)}`
-      setTimeout(() => { successMsg.value = '' }, 5000)
+      shiftStore.recordTransaction(result.transactionId, orderSnapshot.summary.total)
+      // Reset pembayaran
       cashInputFormatted.value = ''
       cashInputRaw.value = 0
+      // Kunci supervisor jika aktif
+      if (supervisorUnlocked.value) lockSupervisor()
+      // Buka modal struk
+      openStruk(orderSnapshot, cashSnapshot, changeSnapshot)
       cartStore.clearOrder(cartStore.activeOrderId)
       if (!cartStore.orders.length) cartStore.createOrder()
     } else {
@@ -693,6 +869,7 @@ onMounted(async () => {
     productsStore.fetchProducts(),
     productsStore.fetchCategories(),
     membersStore.fetchMembers(),
+    staffStore.fetchStaff(),
   ])
   if (!activeOrder.value) cartStore.createOrder()
 
@@ -2164,4 +2341,123 @@ const openCFD = () => {
   padding: 0.5rem 0.875rem;
 }
 .member-combobox :deep(.cb-display-text) { font-size: 0.825rem; }
+
+/* ── Struk Modal ───────────────────────────────────────────────────────── */
+.struk-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.struk-box {
+  background: #fff; border-radius: 16px; padding: 1.5rem;
+  min-width: 320px; max-width: 420px; width: 100%;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.3);
+  font-family: monospace;
+  max-height: 90vh; overflow-y: auto;
+}
+.pos-layout[data-theme="dark"] .struk-box { background: #1e293b; color: #f1f5f9; }
+.struk-header { text-align: center; margin-bottom: 0.75rem; }
+.struk-brand { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem; }
+.struk-meta { font-size: 0.78rem; color: #64748b; }
+.struk-cashier { font-size: 0.8rem; color: #64748b; margin-top: 0.2rem; }
+.struk-divider { color: #94a3b8; font-size: 0.75rem; margin: 0.5rem 0; }
+.struk-items { display: flex; flex-direction: column; gap: 0.4rem; }
+.struk-item { display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; font-size: 0.82rem; }
+.struk-item-name { font-weight: 600; }
+.struk-item-detail { color: #64748b; font-size: 0.75rem; }
+.struk-item-sub { font-weight: 700; text-align: right; }
+.struk-summary { display: flex; flex-direction: column; gap: 0.35rem; }
+.struk-row { display: flex; justify-content: space-between; font-size: 0.85rem; }
+.struk-total { font-weight: 800; font-size: 1rem; margin: 0.25rem 0; }
+.struk-discount { color: #ef4444; }
+.struk-change { color: #10b981; font-weight: 700; }
+.struk-footer { text-align: center; margin-top: 0.75rem; font-size: 0.8rem; color: #64748b; }
+.struk-actions {
+  display: flex; gap: 0.75rem; margin-top: 1rem; padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+.pos-layout[data-theme="dark"] .struk-actions { border-top-color: #334155; }
+.struk-btn-print {
+  flex: 1; padding: 0.625rem; border-radius: 10px; border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff;
+  font-size: 0.875rem; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.struk-btn-print:hover { opacity: 0.9; transform: translateY(-1px); }
+.struk-btn-close {
+  flex: 1; padding: 0.625rem; border-radius: 10px;
+  border: 1.5px solid #e2e8f0; background: transparent;
+  font-size: 0.875rem; font-weight: 600; cursor: pointer; color: #475569;
+  transition: all 0.2s;
+}
+.struk-btn-close:hover { border-color: #6366f1; color: #6366f1; }
+.pos-layout[data-theme="dark"] .struk-btn-close { border-color: #334155; color: #94a3b8; }
+
+/* ── Supervisor Override Panel ────────────────────────────────────── */
+.btn-sv-override {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.4rem 0.875rem; border-radius: 8px;
+  border: 1.5px solid rgba(245,158,11,0.4);
+  background: transparent; color: #b45309;
+  font-size: 0.76rem; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-sv-override:hover { background: rgba(245,158,11,0.1); border-color: #f59e0b; }
+.btn-sv-override.sv-active {
+  background: rgba(16,185,129,0.12); border-color: #10b981; color: #059669;
+}
+.sv-indicator { font-size: 0.75rem; }
+
+.modal-overlay-sv {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 300;
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.sv-panel {
+  background: #fff; border-radius: 16px; padding: 1.5rem;
+  width: 100%; max-width: 380px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+}
+.pos-layout[data-theme="dark"] .sv-panel { background: #1e293b; color: #f1f5f9; }
+.sv-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.sv-title { font-size: 1rem; font-weight: 700; }
+.sv-close {
+  background: none; border: none; font-size: 1.25rem; cursor: pointer;
+  color: #94a3b8; padding: 0.25rem; line-height: 1;
+}
+.sv-form { display: flex; flex-direction: column; gap: 0.875rem; }
+.sv-form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+.sv-label { font-size: 0.8rem; font-weight: 600; color: #64748b; }
+.sv-select, .sv-input {
+  padding: 0.625rem 0.875rem; border-radius: 10px;
+  border: 1.5px solid #e2e8f0; font-size: 0.875rem;
+  background: #f8fafc; color: #1e293b; outline: none;
+  transition: border-color 0.2s;
+}
+.pos-layout[data-theme="dark"] .sv-select,
+.pos-layout[data-theme="dark"] .sv-input { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+.sv-select:focus, .sv-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+.sv-error { font-size: 0.8rem; color: #ef4444; padding: 0.5rem 0.75rem; background: rgba(239,68,68,0.08); border-radius: 8px; }
+.sv-btn-verify {
+  padding: 0.75rem; border: none; border-radius: 10px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff;
+  font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.sv-btn-verify:disabled { opacity: 0.5; cursor: not-allowed; }
+.sv-btn-verify:hover:not(:disabled) { opacity: 0.9; }
+.sv-unlocked { display: flex; flex-direction: column; gap: 1rem; }
+.sv-unlocked-info {
+  padding: 0.875rem; border-radius: 10px;
+  background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2);
+  color: #059669; font-size: 0.875rem;
+}
+.sv-btn-lock {
+  padding: 0.75rem; border: none; border-radius: 10px;
+  background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff;
+  font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.sv-btn-lock:hover { opacity: 0.9; }
+
+/* Modal fade transition */
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.25s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
 </style>

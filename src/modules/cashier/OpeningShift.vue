@@ -77,10 +77,12 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useShiftStore } from '@/stores/shift'
+import { useCartStore } from '@/stores/cart'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const shiftStore = useShiftStore()
+const cartStore = useCartStore()
 
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 const balanceFormatted = ref('')
@@ -118,6 +120,8 @@ const handleOpenShift = async () => {
 
   const result = await shiftStore.openShift(balanceRaw.value)
   if (result.success) {
+    // Clear semua keranjang sisa dari shift sebelumnya
+    cartStore.clearAllOrders()
     router.push('/cashier')
   } else {
     errorMsg.value = result.message

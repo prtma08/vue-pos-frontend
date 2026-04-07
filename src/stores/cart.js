@@ -113,6 +113,32 @@ export const useCartStore = defineStore('cart', () => {
     const authStore = useAuthStore()
     const orderId = generateOrderId()
 
+    // ── Langkah 4 URD: Lock stok order yang sedang aktif saat kasir membuat order baru ──
+    // Saat ada order ke-2 dibuat, order yang sedang aktif dijadikan "pending" secara permanent
+    // Stok-nya di-deduct (bukan hanya reserve) agar barang tidak terjual ke order lain
+    if (orders.value.length >= 1 && activeOrderId.value) {
+      const currentOrder = orders.value.find(o => o.id === activeOrderId.value)
+      if (currentOrder && !currentOrder.stockLocked && currentOrder.items.length > 0) {
+        const productsStore = useProductsStore()
+        for (const item of currentOrder.items) {
+          // Release reservation kemudian deduct permanent
+          if (item.isBundle && item.bundleItems) {
+            for (const comp of item.bundleItems) {
+              productsStore.releaseReservedStock(comp.productId, (comp.qty || 1) * item.quantity)
+              productsStore.deductStock(comp.productId, (comp.qty || 1) * item.quantity)
+            }
+          } else {
+            productsStore.releaseReservedStock(item.productId, item.quantity)
+            productsStore.deductStock(item.productId, item.quantity)
+          }
+        }
+        currentOrder.stockLocked = true
+        if (import.meta.env.DEV) {
+          console.log('[Cart] Pending stock locked for order:', currentOrder.id)
+        }
+      }
+    }
+
     const newOrder = {
       id: orderId,
       status: 'pending',
@@ -503,9 +529,12 @@ export const useCartStore = defineStore('cart', () => {
     }
 
     const orderToClear = orders.value[index]
-    orderToClear.items.forEach(item => {
-      useProductsStore().releaseReservedStock(item.productId, item.quantity)
-    })
+    // Jika stok sudah di-lock (deduct), jangan release — stoknya sudah terpotong permanent
+    if (!orderToClear.stockLocked) {
+      orderToClear.items.forEach(item => {
+        useProductsStore().releaseReservedStock(item.productId, item.quantity)
+      })
+    }
     orders.value.splice(index, 1)
 
     if (activeOrderId.value === orderId) {
