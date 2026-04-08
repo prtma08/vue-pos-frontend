@@ -5,13 +5,7 @@
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <!-- Brand -->
       <div class="sidebar-brand">
-        <div class="brand-mark">
-          <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
-            <path d="M7 8h14M7 14h9M7 20h12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-            <circle cx="21" cy="20" r="3" fill="currentColor"/>
-          </svg>
-        </div>
-        <span class="brand-wordmark">Nextore</span>
+        <img src="/LOGO.png" alt="Logo" class="brand-logo" />
       </div>
 
       <!-- Navigation -->
@@ -382,29 +376,17 @@ onMounted(async () => {
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1.375rem 1.25rem 1.125rem;
-  border-bottom: 1px solid var(--sidebar-border);
+  justify-content: flex-start;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
-.brand-mark {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.brand-wordmark {
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--sidebar-brand);
-  letter-spacing: -0.02em;
+.brand-logo {
+  max-width: 100%;
+  max-height: 50px;
+  object-fit: contain;
 }
 
 /* Nav */
@@ -681,12 +663,15 @@ onMounted(async () => {
     width: 3.5rem;
   }
 
-  .sidebar.collapsed .brand-wordmark,
   .sidebar.collapsed .nav-label-text,
   .sidebar.collapsed .nav-section-label,
   .sidebar.collapsed .user-text,
   .sidebar.collapsed .footer-controls .ctrl-btn:last-child {
     display: none;
+  }
+
+  .sidebar.collapsed .brand-logo {
+    max-height: 40px;
   }
 
   .sidebar.collapsed .sidebar-brand {
