@@ -14,8 +14,7 @@
     <!-- Toolbar -->
     <div class="toolbar">
       <div class="search-wrap">
-        <svg class="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari nama diskon..."/>
+        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari Diskon..."/>
       </div>
       <div class="filter-row">
         <button class="filter-pill" :class="{ active: !store.targetFilter }" @click="store.targetFilter = ''">Semua</button>
@@ -97,10 +96,12 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Status</label>
-                <div class="status-row">
-                  <button type="button" class="status-toggle" :class="form.isActive ? 'active' : 'inactive'" @click="form.isActive = !form.isActive">
-                    {{ form.isActive ? 'Aktif' : 'Nonaktif' }}
-                  </button>
+                <div class="status-toggle-wrap">
+                  <label class="toggle-label">
+                    <input type="checkbox" v-model="form.isActive" class="toggle-input"/>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">{{ form.isActive ? 'Aktif' : 'Nonaktif' }}</span>
+                  </label>
                 </div>
               </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
@@ -141,6 +142,7 @@ import { useDiscountsStore } from '@/stores/discounts'
 
 const store = useDiscountsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
@@ -193,7 +195,7 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 .toolbar { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.75rem; }
 .search-wrap { position: relative; max-width: 420px; }
 .search-ico { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; }
-.search-input { width: 100%; padding: 0.875rem 1rem 0.875rem 2.75rem; }
+.search-input { width: 100%; padding: 0.875rem 1rem; }
 
 .filter-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .filter-pill { padding: 0.5rem 1.25rem; border-radius: 999px; border: 2px solid #e2e8f0; background: #fff; color: #64748b; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }
@@ -247,9 +249,10 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 .modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.35rem; font-weight: 700; color: #1e293b; margin: 0; }
 .module-page[data-theme="dark"] .modal-title { color: #f1f5f9; }
 .danger-title { color: #ef4444; }
-.modal-close { width: 2.25rem; height: 2.25rem; border: none; background: #fff; border-radius: 10px; cursor: pointer; font-size: 1.5rem; color: #64748b; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.modal-close { width: 2.25rem; height: 2.25rem; border: none; background: #fff; border-radius: 10px; cursor: pointer; font-size: 1.5rem; color: #64748b; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease, color 0.2s ease; flex-shrink: 0; }
 .module-page[data-theme="dark"] .modal-close { background: #334155; color: #94a3b8; }
-.modal-close:hover { background: #f1f5f9; color: #1e293b; transform: rotate(90deg); }
+.modal-close:hover { background: #f1f5f9; color: #1e293b; }
+.module-page[data-theme="dark"] .modal-close:hover { background: #475569; color: #f1f5f9; }
 .modal-form { padding: 2rem; }
 .form-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -275,9 +278,23 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 .table-row { animation: fadeIn 0.4s ease forwards; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-/* ── Status Row & Toggle ── */
-.status-row { display: flex; align-items: center; }
-.status-toggle { padding: 0.5rem 1.25rem; border-radius: 999px; border: none; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-.status-toggle.active { background: rgba(5,150,105,0.12); color: #059669; }
-.status-toggle.inactive { background: rgba(100,116,139,0.12); color: #64748b; }
+/* ── Toggle Switch (form) ── */
+.status-toggle-wrap { display: flex; align-items: center; }
+.toggle-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; user-select: none; }
+.toggle-input { display: none; }
+.toggle-slider {
+  width: 44px; height: 24px; background: #e2e8f0; border-radius: 999px;
+  position: relative; transition: background 0.2s;
+}
+.toggle-slider::after {
+  content: ''; position: absolute; left: 3px; top: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+}
+.toggle-input:checked + .toggle-slider { background: #6366f1; }
+.toggle-input:checked + .toggle-slider::after { transform: translateX(20px); }
+.toggle-text { font-size: 0.875rem; font-weight: 600; color: #475569; }
+.module-page[data-theme="dark"] .toggle-text { color: #cbd5e1; }
+.module-page[data-theme="dark"] .toggle-slider { background: #334155; }
 </style>

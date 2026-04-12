@@ -118,6 +118,7 @@ import { useShiftStore } from '@/stores/shift'
 const txStore = useTransactionsStore()
 const shiftStore = useShiftStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const activeTab = ref('kasir')
 const tabs = [
   { key: 'kasir', label: '📊 Per Kasir' },

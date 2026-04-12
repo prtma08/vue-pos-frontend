@@ -10,8 +10,7 @@
 
     <div class="toolbar">
       <div class="search-wrap">
-        <svg class="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari terminal..."/>
+        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari Terminal..."/>
       </div>
       <div class="filter-row">
         <button class="filter-pill" :class="{ active: !store.statusFilter }" @click="store.statusFilter = ''">Semua</button>
@@ -63,9 +62,13 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Status</label>
-                <button type="button" class="status-toggle" :class="form.isActive ? 'active' : 'inactive'" @click="form.isActive = !form.isActive">
-                  {{ form.isActive ? '● Aktif' : '○ Nonaktif' }}
-                </button>
+                <div class="status-toggle-wrap">
+                  <label class="toggle-label">
+                    <input type="checkbox" v-model="form.isActive" class="toggle-input"/>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">{{ form.isActive ? 'Aktif' : 'Nonaktif' }}</span>
+                  </label>
+                </div>
               </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
@@ -101,6 +104,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { usePosDevicesStore } from '@/stores/posDevices'
 const store = usePosDevicesStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const showModal = ref(false); const editTarget = ref(null); const deleteTarget = ref(null); const formError = ref('')
 const form = reactive({ name: '', location: '', isActive: true })
 onMounted(() => store.fetchAll())
@@ -127,7 +131,7 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 .toolbar { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.75rem; }
 .search-wrap { position: relative; max-width: 420px; }
 .search-ico { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; }
-.search-input { width: 100%; padding: 0.875rem 1rem 0.875rem 2.75rem; }
+.search-input { width: 100%; padding: 0.875rem 1rem; }
 .filter-row { display: flex; gap: 0.5rem; }
 .filter-pill { padding: 0.5rem 1.25rem; border-radius: 999px; border: 2px solid #e2e8f0; background: #fff; color: #64748b; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }
 .filter-pill.active { background: linear-gradient(135deg, #6366f1, #8b5cf6); border-color: transparent; color: #fff; }
@@ -179,8 +183,10 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 .modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.35rem; font-weight: 700; color: #1e293b; margin: 0; }
 .module-page[data-theme="dark"] .modal-title { color: #f1f5f9; }
 .danger-title { color: #ef4444; }
-.modal-close { width: 2.25rem; height: 2.25rem; border: none; background: #fff; border-radius: 10px; cursor: pointer; font-size: 1.5rem; color: #64748b; display: flex; align-items: center; justify-content: center; }
+.modal-close { width: 2.25rem; height: 2.25rem; border: none; background: #fff; border-radius: 10px; cursor: pointer; font-size: 1.5rem; color: #64748b; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease, color 0.2s ease; flex-shrink: 0; }
 .module-page[data-theme="dark"] .modal-close { background: #334155; color: #94a3b8; }
+.modal-close:hover { background: #f1f5f9; color: #1e293b; }
+.module-page[data-theme="dark"] .modal-close:hover { background: #475569; color: #f1f5f9; }
 .modal-form { padding: 2rem; }
 .form-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
 .form-label { font-size: 0.825rem; font-weight: 600; color: #475569; }
@@ -194,4 +200,24 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.3s; }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
+
+/* ── Toggle Switch (form) ── */
+.status-toggle-wrap { display: flex; align-items: center; }
+.toggle-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; user-select: none; }
+.toggle-input { display: none; }
+.toggle-slider {
+  width: 44px; height: 24px; background: #e2e8f0; border-radius: 999px;
+  position: relative; transition: background 0.2s;
+}
+.toggle-slider::after {
+  content: ''; position: absolute; left: 3px; top: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+}
+.toggle-input:checked + .toggle-slider { background: #6366f1; }
+.toggle-input:checked + .toggle-slider::after { transform: translateX(20px); }
+.toggle-text { font-size: 0.875rem; font-weight: 600; color: #475569; }
+.module-page[data-theme="dark"] .toggle-text { color: #cbd5e1; }
+.module-page[data-theme="dark"] .toggle-slider { background: #334155; }
 </style>

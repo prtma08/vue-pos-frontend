@@ -108,6 +108,7 @@ import { useCategoriesStore } from '@/stores/categories'
 const productsStore = useProductsStore()
 const categoriesStore = useCategoriesStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const selectedProductId = ref('')
 const selectedProduct = computed(() => productsStore.products.find(p => p.id === selectedProductId.value))
 const submitting = ref(false)

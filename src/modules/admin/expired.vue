@@ -55,6 +55,7 @@ import { useProductsStore } from '@/stores/products'
 
 const productsStore = useProductsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const thresholdDays = ref(30)
 
 onMounted(() => productsStore.fetchProducts())

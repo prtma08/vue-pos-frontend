@@ -18,7 +18,7 @@
     <div class="filter-bar">
       <div class="search-wrap">
         <svg class="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari ID, kasir, member..."/>
+        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari ID, Kasir, Member..."/>
       </div>
       <select v-model="store.paymentFilter" class="input-field filter-select">
         <option value="">Semua</option>
@@ -162,6 +162,7 @@ import { useTransactionsStore } from '@/stores/transactions'
 
 const store = useTransactionsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const detailTx = ref(null)
 
 onMounted(() => store.fetchAll())
@@ -431,7 +432,7 @@ const clearFilters = () => {
 
 .search-input {
   width: 100%;
-  padding: 0.875rem 1rem 0.875rem 2.875rem;
+  padding: 0.875rem 1rem 0.875rem 3.5rem;
   border: 2px solid #e2e8f0;
   border-radius: 13px;
   background: #ffffff;
@@ -966,24 +967,9 @@ const clearFilters = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.2s ease, color 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
-  position: relative;
   flex-shrink: 0;
-}
-
-.modal-close::after {
-  content: '';
-  position: absolute;
-  inset: -1.5px;
-  border-radius: inherit;
-  padding: 1.5px;
-  background: linear-gradient(135deg, rgba(79,70,229,0.35), transparent);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.2s;
 }
 
 .module-page[data-theme="dark"] .modal-close {
@@ -994,11 +980,6 @@ const clearFilters = () => {
 .modal-close:hover {
   background: #f1f5f9;
   color: #1e293b;
-  transform: rotate(90deg) scale(1.03);
-}
-
-.modal-close:hover::after {
-  opacity: 1;
 }
 
 .module-page[data-theme="dark"] .modal-close:hover {

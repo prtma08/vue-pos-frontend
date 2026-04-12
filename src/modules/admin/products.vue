@@ -25,17 +25,13 @@
     <!-- ── Toolbar ───────────────────────────────────────────────────────── -->
     <div class="toolbar">
       <div class="search-wrap">
-        <svg class="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-        </svg>
         <input 
           v-model="store.filters.searchTerm" 
           @input="store.setSearchFilter($event.target.value)" 
           class="input-field search-input" 
           type="text" 
-          placeholder="Cari produk atau SKU..." 
+          placeholder="Cari Produk atau SKU..." 
         />
-        <span class="search-hint">Tekan Enter untuk mencari</span>
       </div>
       <div class="filter-row">
         <button 
@@ -207,7 +203,7 @@
                     option-key="id"
                     option-label="name"
                     placeholder="-- Pilih Kategori --"
-                    search-placeholder="Cari kategori..."
+                    search-placeholder="Cari Kategori..."
                     :clearable="false"
                   />
                 </div>
@@ -373,6 +369,7 @@ import AppCombobox from '@/components/AppCombobox.vue'
 
 const store = useProductsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 
 const showModal = ref(false)
 const editTarget = ref(null)
@@ -713,8 +710,9 @@ const marginClass = (pct) => {
 }
 
 .search-input {
-  width: 100%;
-  padding: 0.75rem 1rem 0.75rem 2.75rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.75rem 1rem;
   border: 1.5px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--surface-input);
@@ -794,6 +792,8 @@ const marginClass = (pct) => {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--shadow-md);
 }
 
@@ -850,6 +850,7 @@ const marginClass = (pct) => {
 /* Data Table */
 .data-table {
   width: 100%;
+  min-width: 900px;
   border-collapse: collapse;
 }
 
@@ -1472,7 +1473,6 @@ const marginClass = (pct) => {
 .modal-close:hover {
   background: #f1f5f9;
   color: #1e293b;
-  border-color: #64748b;
 }
 
 .module-page[data-theme="dark"] .modal-close:hover {

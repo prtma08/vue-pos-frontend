@@ -15,8 +15,7 @@
     <!-- ── Search ── -->
     <div class="toolbar">
       <div class="search-wrap">
-        <svg class="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari nama atau telepon..."/>
+        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari Nama atau Telepon..."/>
       </div>
     </div>
 
@@ -135,6 +134,7 @@ import { useMembersStore } from '@/stores/members'
 
 const store = useMembersStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 
 const showModal = ref(false)
 const editTarget = ref(null)
@@ -353,7 +353,7 @@ const handleDelete = async () => {
 
 .search-input {
   width: 100%;
-  padding: 1rem 1.125rem 1rem 3rem;
+  padding: 1rem 1.125rem;
   border: 2px solid #e2e8f0;
   border-radius: 16px;
   background: #ffffff;
@@ -835,23 +835,9 @@ const handleDelete = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.2s ease, color 0.2s ease;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  position: relative;
-}
-
-.modal-close::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  padding: 2px;
-  background: linear-gradient(135deg, rgba(99,102,241,0.3), transparent);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.2s;
+  flex-shrink: 0;
 }
 
 .module-page[data-theme="dark"] .modal-close {
@@ -862,11 +848,6 @@ const handleDelete = async () => {
 .modal-close:hover {
   background: #f1f5f9;
   color: #1e293b;
-  transform: rotate(90deg) scale(1.05);
-}
-
-.modal-close:hover::after {
-  opacity: 1;
 }
 
 .module-page[data-theme="dark"] .modal-close:hover {

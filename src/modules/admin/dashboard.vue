@@ -568,7 +568,8 @@ const staffStore = useStaffStore()
 const router = useRouter()
 
 // Theme is controlled by MainLayout — read it for CSS variable bindings only
-const theme = computed(() => localStorage.getItem('nextore-theme') || 'light')
+const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 
 // Stats
 const stats = ref({ 

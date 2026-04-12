@@ -15,8 +15,7 @@
     <!-- ── Toolbar ── -->
     <div class="toolbar">
       <div class="search-wrap">
-        <svg class="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari nama, username..."/>
+        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari Akun..."/>
       </div>
       <div class="filter-row">
         <button class="filter-pill" :class="{ active: !store.roleFilter }" @click="store.roleFilter = ''">Semua</button>
@@ -162,6 +161,7 @@ import { useUsersStore } from '@/stores/users'
 
 const store = useUsersStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 
 const showModal = ref(false)
 const editTarget = ref(null)
@@ -336,6 +336,8 @@ const handleDelete = async () => {
 .search-wrap {
   position: relative;
   max-width: 420px;
+  display: flex;
+  align-items: center;
 }
 
 .search-ico {
@@ -348,8 +350,9 @@ const handleDelete = async () => {
 }
 
 .search-input {
-  width: 100%;
-  padding: 0.875rem 1rem 0.875rem 2.75rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.875rem 1rem;
   border: 2px solid #e2e8f0;
   border-radius: 12px;
   background: #ffffff;
@@ -891,7 +894,6 @@ const handleDelete = async () => {
 .modal-close:hover {
   background: #f1f5f9;
   color: #1e293b;
-  transform: rotate(90deg);
 }
 
 .module-page[data-theme="dark"] .modal-close:hover {

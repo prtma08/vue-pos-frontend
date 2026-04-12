@@ -15,16 +15,9 @@
     <!-- Login Card -->
     <div class="login-card animate-fadeIn">
       <!-- Logo -->
-      <div class="login-logo">
-        <div class="logo-icon">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <rect width="28" height="28" rx="8" fill="currentColor" opacity="0.15"/>
-            <path d="M7 8h14M7 14h9M7 20h12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-            <circle cx="21" cy="20" r="3" fill="currentColor"/>
-          </svg>
-        </div>
+      <div class="login-logo" style="flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+        <img src="/LOGO.png" alt="Nextore" style="height: 64px; object-fit: contain;" />
         <div class="logo-text">
-          <h1 class="logo-brand">Nextore</h1>
           <p class="logo-tagline">Point of Sale System</p>
         </div>
       </div>

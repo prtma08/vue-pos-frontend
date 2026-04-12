@@ -1,11 +1,20 @@
 <template>
-  <div class="app-shell" :data-theme="theme">
+  <div class="app-shell" :class="{ 'sidebar-collapsed': !sidebarOpen }" :data-theme="theme">
+
+    <!-- ── Overlay ── -->
+    <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
 
     <!-- ─────────────────────── SIDEBAR ───────────────────────────────── -->
-    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+    <aside class="sidebar" :class="{ open: sidebarOpen }">
       <!-- Brand -->
       <div class="sidebar-brand">
         <img src="/LOGO.png" alt="Logo" class="brand-logo" />
+        <button class="sidebar-close-btn" @click="sidebarOpen = false" title="Tutup Menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
       <!-- Navigation -->
@@ -60,17 +69,6 @@
               </svg>
             </span>
             <span class="nav-label-text">Member</span>
-          </router-link>
-          <router-link v-if="authStore.isAdmin || authStore.isSuperuser" to="/admin/accounts" class="nav-item" active-class="is-active">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-            </span>
-            <span class="nav-label-text">Kelola Akun</span>
           </router-link>
         </div>
 
@@ -208,8 +206,8 @@
 
       <!-- ── Topbar ── -->
       <header class="topbar">
-        <!-- Hamburger (mobile) -->
-        <button class="hamburger" @click="sidebarCollapsed = !sidebarCollapsed">
+        <!-- Sidebar toggle -->
+        <button class="sidebar-toggle" @click="sidebarOpen = !sidebarOpen" :title="sidebarOpen ? 'Tutup Sidebar' : 'Buka Sidebar'">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
           </svg>
@@ -229,6 +227,52 @@
             </svg>
             <span>{{ todayStr }}</span>
           </div>
+
+          <!-- Notification Bell -->
+          <div class="notif-trigger-wrap" ref="notifWrapRef">
+            <button class="notif-bell-btn" @click="notifOpen = !notifOpen" title="Notifikasi">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              <span v-if="unreadCount > 0" class="notif-badge">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
+            </button>
+
+            <!-- Notification Dropdown Panel -->
+            <transition name="notif-drop">
+              <div v-if="notifOpen" class="notif-panel">
+                <div class="notif-panel-header">
+                  <h3 class="notif-panel-title">Notifikasi</h3>
+                  <button v-if="unreadCount > 0" class="notif-mark-all" @click="markAllRead">Tandai semua dibaca</button>
+                </div>
+                <div class="notif-list">
+                  <div v-if="notifications.length === 0" class="notif-empty">Tidak ada notifikasi</div>
+                  <div
+                    v-for="n in notifications" :key="n.id"
+                    class="notif-item" :class="{ unread: !n.read }"
+                    @click="markRead(n)"
+                  >
+                    <div class="notif-item-icon" :class="n.type">
+                      <!-- Order icon -->
+                      <svg v-if="n.type === 'order'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                      <!-- Alert icon -->
+                      <svg v-else-if="n.type === 'alert'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                      <!-- Info icon -->
+                      <svg v-else-if="n.type === 'info'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                      <!-- System/default icon -->
+                      <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    </div>
+                    <div class="notif-item-body">
+                      <span class="notif-item-title">{{ n.title }}</span>
+                      <span class="notif-item-msg">{{ n.message }}</span>
+                    </div>
+                    <span class="notif-item-time">{{ n.time }}</span>
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
+
           <button v-if="authStore.roles?.length > 1" class="topbar-switch-btn" @click="handleSwitchRole" title="Ganti Role">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
             Switch Role
@@ -249,7 +293,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -262,10 +306,21 @@ const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 const toggleTheme = () => {
   theme.value = theme.value === 'light' ? 'dark' : 'light'
   localStorage.setItem('nextore-theme', theme.value)
+  window.dispatchEvent(new CustomEvent('nextore-theme-change', { detail: theme.value }))
 }
 
-// ── Sidebar collapse (mobile) ──────────────────────────────────────────────
-const sidebarCollapsed = ref(false)
+// ── Sidebar open/close ─────────────────────────────────────────────────────
+const isDesktop = ref(window.innerWidth >= 769)
+const sidebarOpen = ref(isDesktop.value)
+
+// Track resize to auto-open/close sidebar
+const onResize = () => {
+  const wasDesktop = isDesktop.value
+  isDesktop.value = window.innerWidth >= 769
+  if (isDesktop.value && !wasDesktop) sidebarOpen.value = true
+  if (!isDesktop.value && wasDesktop) sidebarOpen.value = false
+}
+window.addEventListener('resize', onResize)
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 const roleLabel = computed(() => {
@@ -311,8 +366,34 @@ const todayStr = computed(() =>
   new Date().toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 )
 
-// ── Close sidebar on route change (mobile) ─────────────────────────────────
-watch(() => route.path, () => { sidebarCollapsed.value = false })
+// ── Close sidebar on route change (mobile only) ────────────────────────────
+watch(() => route.path, () => { if (!isDesktop.value) sidebarOpen.value = false })
+
+// ── Notification System ────────────────────────────────────────────────────
+const notifOpen = ref(false)
+const notifWrapRef = ref(null)
+
+const notifications = ref([
+  { id: 1, type: 'order',  title: 'Pesanan Baru #1042',        message: 'Pesanan senilai Rp 85.000 masuk dari POS Kasir 1.',   time: '2 menit lalu', read: false },
+  { id: 2, type: 'alert',  title: 'Stok Hampir Habis',          message: 'Produk "Es Teh Manis" tersisa 5 unit.',              time: '15 menit lalu', read: false },
+  { id: 3, type: 'info',   title: 'Member Baru Terdaftar',      message: 'Siti Rahayu telah bergabung sebagai member.',         time: '1 jam lalu', read: false },
+  { id: 4, type: 'system', title: 'Pembaruan Sistem',           message: 'Versi 2.4.0 telah berhasil diterapkan.',             time: '3 jam lalu', read: true },
+  { id: 5, type: 'order',  title: 'Pesanan Baru #1041',        message: 'Pesanan senilai Rp 120.000 masuk dari POS Drive Thru.', time: '5 jam lalu', read: true },
+])
+
+const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
+
+const markRead = (n) => { n.read = true }
+const markAllRead = () => { notifications.value.forEach(n => { n.read = true }) }
+
+// Close dropdown when clicking outside
+const onClickOutsideNotif = (e) => {
+  if (notifWrapRef.value && !notifWrapRef.value.contains(e.target)) {
+    notifOpen.value = false
+  }
+}
+onMounted(() => document.addEventListener('click', onClickOutsideNotif))
+onUnmounted(() => document.removeEventListener('click', onClickOutsideNotif))
 
 // ── Check auth on mount ────────────────────────────────────────────────────
 onMounted(async () => {
@@ -335,23 +416,39 @@ onMounted(async () => {
 
 /* ─── CSS Variables by theme ────────────────────────────────────────────── */
 .app-shell {
+  /* Light mode sidebar */
+  --sidebar-bg: #ffffff;
+  --sidebar-text: #475569;
+  --sidebar-text-hover: #0f172a;
+  --sidebar-active-bg: rgba(99, 102, 241, 0.1);
+  --sidebar-active-text: #6366f1;
+  --sidebar-active-border: #6366f1;
+  --sidebar-label: #94a3b8;
+  --sidebar-border: #e2e8f0;
+  --sidebar-brand: #1e293b;
+  --sidebar-user-name: #1e293b;
+  --sidebar-nav-hover-bg: rgba(0,0,0,0.04);
+  --topbar-bg: #ffffff;
+  --topbar-border: #e2e8f0;
+  --topbar-text: #1e293b;
+  --content-bg: #f1f5f9;
+  --ctrl-hover: rgba(99,102,241,0.1);
+}
+
+.app-shell[data-theme="dark"] {
+  /* Dark mode sidebar */
   --sidebar-bg: #0f172a;
   --sidebar-text: #94a3b8;
   --sidebar-text-hover: #f1f5f9;
   --sidebar-active-bg: rgba(99, 102, 241, 0.15);
   --sidebar-active-text: #818cf8;
-  --sidebar-active-border: #6366f1;
   --sidebar-label: #475569;
   --sidebar-border: rgba(255,255,255,0.06);
   --sidebar-brand: #f1f5f9;
-  --topbar-bg: #ffffff;
-  --topbar-border: #e2e8f0;
-  --topbar-text: #1e293b;
-  --content-bg: #f1f5f9;
+  --sidebar-user-name: #e2e8f0;
+  --sidebar-nav-hover-bg: rgba(255,255,255,0.06);
   --ctrl-hover: rgba(99,102,241,0.15);
-}
-
-.app-shell[data-theme="dark"] {
+  /* Dark mode topbar/content */
   --topbar-bg: #1e293b;
   --topbar-border: #334155;
   --topbar-text: #f1f5f9;
@@ -365,11 +462,11 @@ onMounted(async () => {
   background: var(--sidebar-bg);
   display: flex;
   flex-direction: column;
-  transition: width 0.25s ease, transform 0.25s ease;
   position: relative;
   z-index: 200;
   overflow: hidden;
   border-right: 1px solid var(--sidebar-border);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 /* Brand */
@@ -389,11 +486,34 @@ onMounted(async () => {
   object-fit: contain;
 }
 
+/* Close sidebar button */
+.sidebar-close-btn {
+  display: flex;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sidebar-text);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.sidebar-close-btn:hover {
+  background: var(--sidebar-nav-hover-bg);
+  color: var(--sidebar-text-hover);
+}
+
 /* Nav */
 .sidebar-nav {
   flex: 1;
   overflow-y: auto;
   padding: 0.75rem 0;
+  transition: background-color 0.2s ease;
   scrollbar-width: thin;
   scrollbar-color: #334155 transparent;
 }
@@ -410,6 +530,7 @@ onMounted(async () => {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--sidebar-label);
+  transition: color 0.2s ease;
 }
 
 .nav-item {
@@ -430,7 +551,7 @@ onMounted(async () => {
 }
 
 .nav-item:hover {
-  background: rgba(255,255,255,0.06);
+  background: var(--sidebar-nav-hover-bg);
   color: var(--sidebar-text-hover);
 }
 
@@ -487,10 +608,11 @@ onMounted(async () => {
 .user-name-sm {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--sidebar-user-name);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.2s ease;
 }
 
 .user-role-sm {
@@ -558,8 +680,8 @@ onMounted(async () => {
   transition: background 0.2s, border-color 0.2s;
 }
 
-.hamburger {
-  display: none;
+.sidebar-toggle {
+  display: flex;
   width: 2rem;
   height: 2rem;
   border: none;
@@ -570,6 +692,12 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.sidebar-toggle:hover {
+  background: var(--ctrl-hover, rgba(99,102,241,0.1));
+  color: var(--sidebar-active-text, #6366f1);
 }
 
 .topbar-title {
@@ -626,6 +754,232 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
+/* ── Notification Bell & Panel ──────────────────────────────────────────── */
+.notif-trigger-wrap {
+  position: relative;
+}
+
+.notif-bell-btn {
+  position: relative;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--topbar-border, #e2e8f0);
+  background: var(--ctrl-bg, #fff);
+  color: var(--topbar-text, #475569);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s;
+}
+.notif-bell-btn:hover {
+  background: var(--ctrl-hover, rgba(99,102,241,0.1));
+  color: #6366f1;
+  border-color: rgba(99,102,241,0.3);
+}
+.app-shell[data-theme="dark"] .notif-bell-btn {
+  background: rgba(99,102,241,0.08);
+  border-color: rgba(99,102,241,0.25);
+  color: #94a3b8;
+}
+.app-shell[data-theme="dark"] .notif-bell-btn:hover {
+  background: rgba(99,102,241,0.18);
+  border-color: rgba(99,102,241,0.35);
+  color: #818cf8;
+}
+
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(239,68,68,0.45);
+  animation: badge-pop 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes badge-pop {
+  0% { transform: scale(0); }
+  100% { transform: scale(1); }
+}
+
+/* Panel */
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 370px;
+  max-height: 420px;
+  background: var(--ctrl-bg, #fff);
+  border: 1px solid var(--topbar-border, #e2e8f0);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  z-index: 999;
+  overflow: hidden;
+}
+.app-shell[data-theme="dark"] .notif-panel {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+}
+
+.notif-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--topbar-border, #e2e8f0);
+  flex-shrink: 0;
+}
+.app-shell[data-theme="dark"] .notif-panel-header { border-bottom-color: #334155; }
+
+.notif-panel-title {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--topbar-text, #1e293b);
+  margin: 0;
+}
+
+.notif-mark-all {
+  border: none;
+  background: none;
+  color: #6366f1;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.notif-mark-all:hover { background: rgba(99,102,241,0.1); }
+
+/* List */
+.notif-list {
+  overflow-y: auto;
+  flex: 1;
+  max-height: 340px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99,102,241,0.25) transparent;
+}
+
+.notif-empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 2.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+/* Item */
+.notif-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid rgba(226,232,240,0.5);
+  align-items: flex-start;
+}
+.app-shell[data-theme="dark"] .notif-item { border-bottom-color: rgba(51,65,85,0.5); }
+
+.notif-item:last-child { border-bottom: none; }
+
+.notif-item:hover {
+  background: rgba(99,102,241,0.04);
+}
+.app-shell[data-theme="dark"] .notif-item:hover { background: rgba(99,102,241,0.08); }
+
+.notif-item.unread {
+  background: rgba(99,102,241,0.06);
+}
+.app-shell[data-theme="dark"] .notif-item.unread {
+  background: rgba(99,102,241,0.1);
+}
+.notif-item.unread::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #6366f1;
+  border-radius: 0 3px 3px 0;
+}
+.notif-item {
+  position: relative;
+}
+
+/* Icon by type */
+.notif-item-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.notif-item-icon.order { background: rgba(99,102,241,0.1); color: #6366f1; }
+.notif-item-icon.alert { background: rgba(245,158,11,0.12); color: #f59e0b; }
+.notif-item-icon.info  { background: rgba(16,185,129,0.1); color: #10b981; }
+.notif-item-icon.system { background: rgba(100,116,139,0.1); color: #64748b; }
+
+.notif-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.notif-item-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--topbar-text, #1e293b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.notif-item.unread .notif-item-title { font-weight: 700; }
+
+.notif-item-msg {
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.app-shell[data-theme="dark"] .notif-item-msg { color: #94a3b8; }
+
+.notif-item-time {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+/* Transition */
+.notif-drop-enter-active { transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+.notif-drop-leave-active { transition: all 0.15s ease-in; }
+.notif-drop-enter-from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+.notif-drop-leave-to { opacity: 0; transform: translateY(-4px) scale(0.98); }
+
 /* Content */
 .content-area {
   flex: 1;
@@ -633,68 +987,84 @@ onMounted(async () => {
   scroll-behavior: smooth;
 }
 
-/* ─── Responsive ────────────────────────────────────────────────────────── */
+/* ─── Overlay ───────────────────────────────────────────────────────────── */
+.sidebar-overlay {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 350;
+  animation: fadeIn 0.3s ease;
+  pointer-events: auto;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ─── Desktop (>= 769px) ── Sidebar collapse support ──────────────────── */
+@media (min-width: 769px) {
+  .sidebar {
+    position: relative;
+    transform: none;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                visibility 0.3s;
+  }
+
+  .app-shell.sidebar-collapsed .sidebar {
+    margin-left: calc(-1 * var(--sidebar-w));
+    visibility: hidden;
+  }
+
+  .sidebar-overlay {
+    display: none !important;
+  }
+}
+
+/* ─── Mobile (< 769px) ─── Sidebar off-canvas ──────────────────────────── */
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
-    transform: translateX(0);
-    z-index: 300;
-    box-shadow: 0 0 40px rgba(0,0,0,0.4);
-  }
-
-  .sidebar.collapsed {
+    width: var(--sidebar-w);
     transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 400;
+    box-shadow: none;
   }
 
-  .hamburger {
-    display: flex;
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 350;
+    animation: fadeIn 0.3s ease;
   }
 
   .today-chip {
     display: none;
   }
-}
 
-@media (min-width: 769px) {
-  .sidebar.collapsed {
-    width: 3.5rem;
-  }
-
-  .sidebar.collapsed .nav-label-text,
-  .sidebar.collapsed .nav-section-label,
-  .sidebar.collapsed .user-text,
-  .sidebar.collapsed .footer-controls .ctrl-btn:last-child {
+  .topbar-switch-btn {
     display: none;
   }
 
-  .sidebar.collapsed .brand-logo {
-    max-height: 40px;
-  }
-
-  .sidebar.collapsed .sidebar-brand {
-    justify-content: center;
-    padding: 1.375rem 0.75rem;
-  }
-
-  .sidebar.collapsed .nav-item {
-    justify-content: center;
-    padding: 0.625rem;
-    margin: 0.125rem 0.5rem;
-  }
-
-  .sidebar.collapsed .footer-controls {
-    flex-direction: column;
-  }
-
-  .sidebar.collapsed .sidebar-user {
-    justify-content: center;
-  }
-
-  .hamburger {
-    display: flex;
+  .notif-panel {
+    position: fixed;
+    top: 3.5rem;
+    right: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+    max-height: 70vh;
   }
 }
 </style>

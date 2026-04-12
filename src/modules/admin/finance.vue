@@ -346,9 +346,11 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // Theme management
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const toggleTheme = () => {
   theme.value = theme.value === 'light' ? 'dark' : 'light'
   localStorage.setItem('nextore-theme', theme.value)
+  window.dispatchEvent(new CustomEvent('nextore-theme-change', { detail: theme.value }))
 }
 
 // Filter state

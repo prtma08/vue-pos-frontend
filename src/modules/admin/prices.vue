@@ -29,7 +29,7 @@
             option-label="name"
             option-sub-label="sku"
             placeholder="-- Pilih produk --"
-            search-placeholder="Cari produk atau SKU..."
+            search-placeholder="Cari Produk atau SKU..."
           />
         </div>
 
@@ -158,6 +158,7 @@ import AppCombobox from '@/components/AppCombobox.vue'
 
 const productsStore = useProductsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 
 const selectedProductId = ref('')
 const newPrice = ref(null)

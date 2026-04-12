@@ -8,11 +8,21 @@
       </button>
     </div>
 
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg class="search-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input v-model="searchTerm" class="input-field search-input" type="text" placeholder="Cari Nama Paket..."/>
+      </div>
+    </div>
+
     <!-- Bundle Cards -->
     <div class="bundle-grid">
       <div v-if="loading" class="state-loading"><span class="spinner-ring"></span> Memuat data...</div>
-      <div v-else-if="bundles.length === 0" class="empty-state">Belum ada paket. Klik "Buat Paket" untuk memulai.</div>
-      <div v-for="b in bundles" :key="b.id" class="bundle-card">
+      <div v-else-if="filteredBundles.length === 0" class="empty-state">
+        {{ searchTerm ? 'Tidak ada paket yang cocok dengan pencarian.' : 'Belum ada paket. Klik "Buat Paket" untuk memulai.' }}
+      </div>
+      <div v-for="b in filteredBundles" :key="b.id" class="bundle-card">
         <div class="bundle-top">
           <div class="bundle-badge">🎁</div>
           <div class="bundle-actions">
@@ -60,7 +70,7 @@
                       option-label="name"
                       :option-sub-label="'sku'"
                       placeholder="-- Pilih produk --"
-                      search-placeholder="Cari produk..."
+                      search-placeholder="Cari Produk..."
                       :clearable="true"
                       @update:model-value="(val) => { comp.productId = val; onComponentSelectById(i, val) }"
                     />
@@ -126,11 +136,13 @@ import AppCombobox from '@/components/AppCombobox.vue'
 
 const productsStore = useProductsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const loading = ref(false)
 const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
+const searchTerm = ref('')
 let nextId = 3
 
 // Mock bundle data
@@ -138,6 +150,12 @@ const bundles = ref([
   { id: 'bnd-1', name: 'Paket Hemat A', bundleStock: 10, items: [{ productId: 'prod-1', name: 'Nasi Goreng', qty: 1, price: 15000 }, { productId: 'prod-2', name: 'Es Teh', qty: 1, price: 5000 }], totalOriginal: 20000, bundlePrice: 17000 },
   { id: 'bnd-2', name: 'Paket Kenyang B', bundleStock: 5, items: [{ productId: 'prod-3', name: 'Mie Ayam', qty: 1, price: 12000 }, { productId: 'prod-4', name: 'Es Jeruk', qty: 1, price: 6000 }, { productId: 'prod-5', name: 'Kerupuk', qty: 2, price: 3000 }], totalOriginal: 24000, bundlePrice: 20000 },
 ])
+
+const filteredBundles = computed(() => {
+  if (!searchTerm.value) return bundles.value
+  const term = searchTerm.value.toLowerCase()
+  return bundles.value.filter(b => b.name.toLowerCase().includes(term))
+})
 
 const form = reactive({ name: '', items: [{ productId: '', qty: 1, name: '', price: 0 }], bundlePrice: 0, bundleStock: 0 })
 
@@ -205,6 +223,19 @@ onMounted(() => productsStore.fetchProducts())
 .module-page[data-theme="dark"] .page-title { background: linear-gradient(135deg, #f1f5f9, #cbd5e1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .page-subtitle { font-size: 0.9rem; color: #64748b; margin-top: 0.375rem; }
 
+/* Toolbar & Search */
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; background: #fff; padding: 1rem 1.5rem; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; }
+.module-page[data-theme="dark"] .toolbar { background: #1e293b; border-color: #334155; }
+.search-wrap { display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem 1.25rem; border-radius: 12px; flex: 1; max-width: 400px; border: 1.5px solid transparent; transition: all 0.3s; }
+.search-wrap:focus-within { background: #fff; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1); }
+.module-page[data-theme="dark"] .search-wrap { background: #0f172a; }
+.module-page[data-theme="dark"] .search-wrap:focus-within { background: #1e293b; border-color: #8b5cf6; }
+.search-ico { color: #64748b; }
+.module-page[data-theme="dark"] .search-ico { color: #94a3b8; }
+.search-input { border: none; background: transparent; padding: 0; width: 100%; font-size: 0.95rem; color: #1e293b; outline: none; }
+.search-input:focus { box-shadow: none; border: none; }
+.module-page[data-theme="dark"] .search-input { color: #f1f5f9; }
+
 .btn { display: inline-flex; align-items: center; gap: 0.625rem; padding: 0.75rem 1.5rem; border-radius: 12px; font-size: 0.875rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.3s; }
 .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; box-shadow: 0 10px 25px -5px rgba(99,102,241,0.4); }
 .btn-primary:hover:not(:disabled) { transform: translateY(-2px); }
@@ -256,8 +287,10 @@ onMounted(() => productsStore.fetchProducts())
 .modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.35rem; font-weight: 700; color: #1e293b; margin: 0; }
 .module-page[data-theme="dark"] .modal-title { color: #f1f5f9; }
 .danger-title { color: #ef4444; }
-.modal-close { width: 2.25rem; height: 2.25rem; border: none; background: #fff; border-radius: 10px; cursor: pointer; font-size: 1.5rem; color: #64748b; display: flex; align-items: center; justify-content: center; }
+.modal-close { width: 2.25rem; height: 2.25rem; border: none; background: #fff; border-radius: 10px; cursor: pointer; font-size: 1.5rem; color: #64748b; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease, color 0.2s ease; flex-shrink: 0; }
 .module-page[data-theme="dark"] .modal-close { background: #334155; color: #94a3b8; }
+.modal-close:hover { background: #f1f5f9; color: #1e293b; }
+.module-page[data-theme="dark"] .modal-close:hover { background: #475569; color: #f1f5f9; }
 .modal-form { padding: 2rem; max-height: 70vh; overflow-y: auto; }
 .form-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }

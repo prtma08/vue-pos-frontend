@@ -17,8 +17,7 @@
     <!-- ── Search Bar ── -->
     <div class="toolbar">
       <div class="search-wrap">
-        <svg class="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari kategori..."/>
+        <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari Kategori..."/>
       </div>
     </div>
 
@@ -80,10 +79,14 @@
                 <textarea v-model="form.description" class="input-field" rows="3" placeholder="Deskripsi singkat kategori..."></textarea>
               </div>
               <div class="form-group">
-                <label class="form-check">
-                  <input type="checkbox" v-model="form.hasExpiration" class="check-input"/>
-                  <span class="check-label">Produk kategori ini memiliki tanggal kadaluarsa</span>
-                </label>
+                <label class="form-label">Kadaluarsa</label>
+                <div class="status-toggle-wrap">
+                  <label class="toggle-label">
+                    <input type="checkbox" v-model="form.hasExpiration" class="toggle-input"/>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">{{ form.hasExpiration ? 'Ya, memiliki kadaluarsa' : 'Tidak ada kadaluarsa' }}</span>
+                  </label>
+                </div>
               </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
@@ -129,6 +132,7 @@ import { useCategoriesStore } from '@/stores/categories'
 
 const store = useCategoriesStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 
 const showModal = ref(false)
 const editTarget = ref(null)
@@ -353,6 +357,8 @@ const handleDelete = async () => {
 .search-wrap {
   position: relative;
   max-width: 420px;
+  display: flex;
+  align-items: center;
 }
 
 .search-ico {
@@ -366,8 +372,9 @@ const handleDelete = async () => {
 }
 
 .search-input {
-  width: 100%;
-  padding: 0.9375rem 1rem 0.9375rem 2.875rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.9375rem 1rem;
   border: 2px solid #e2e8f0;
   border-radius: 14px;
   background: #ffffff;
@@ -414,6 +421,8 @@ const handleDelete = async () => {
   border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 20px;
   overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: 
     0 1px 2px rgba(0, 0, 0, 0.04),
     0 6px 32px -10px rgba(0, 0, 0, 0.1),
@@ -447,6 +456,7 @@ const handleDelete = async () => {
 
 .data-table {
   width: 100%;
+  min-width: 700px;
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -462,6 +472,7 @@ const handleDelete = async () => {
   text-align: left;
   border-bottom: 2px solid #e2e8f0;
   position: relative;
+  white-space: nowrap;
 }
 
 .data-table th::after {
@@ -527,6 +538,9 @@ const handleDelete = async () => {
   color: #64748b;
   max-width: 300px;
   line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .module-page[data-theme="dark"] .col-desc {
@@ -798,23 +812,9 @@ const handleDelete = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.2s ease, color 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
-  position: relative;
-}
-
-.modal-close::after {
-  content: '';
-  position: absolute;
-  inset: -1.5px;
-  border-radius: inherit;
-  padding: 1.5px;
-  background: linear-gradient(135deg, rgba(79,70,229,0.35), transparent);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.2s;
+  flex-shrink: 0;
 }
 
 .module-page[data-theme="dark"] .modal-close {
@@ -825,11 +825,6 @@ const handleDelete = async () => {
 .modal-close:hover {
   background: #f1f5f9;
   color: #1e293b;
-  transform: rotate(90deg) scale(1.03);
-}
-
-.modal-close:hover::after {
-  opacity: 1;
 }
 
 .module-page[data-theme="dark"] .modal-close:hover {
@@ -1017,11 +1012,7 @@ const handleDelete = async () => {
     justify-content: center;
   }
   
-  .data-table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
+  /* Table horizontal scroll is now handled by .table-card overflow-x: auto */
 }
 
 @media (max-width: 768px) {
@@ -1126,11 +1117,23 @@ const handleDelete = async () => {
 .expiry-badge.yes { color: #10b981; }
 .expiry-badge.no { color: #94a3b8; }
 
-/* Checkbox */
-.form-check { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem 1rem; border: 2px solid #e2e8f0; border-radius: 12px; transition: all 0.25s; }
-.form-check:hover { border-color: #6366f1; background: rgba(99,102,241,0.04); }
-.module-page[data-theme="dark"] .form-check { border-color: #334155; }
-.check-input { width: 1.25rem; height: 1.25rem; accent-color: #6366f1; cursor: pointer; flex-shrink: 0; }
-.check-label { font-size: 0.875rem; font-weight: 500; color: #475569; }
-.module-page[data-theme="dark"] .check-label { color: #cbd5e1; }
+/* Toggle Switch */
+.status-toggle-wrap { display: flex; align-items: center; }
+.toggle-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; user-select: none; }
+.toggle-input { display: none; }
+.toggle-slider {
+  width: 44px; height: 24px; background: #e2e8f0; border-radius: 999px;
+  position: relative; transition: background 0.2s;
+}
+.toggle-slider::after {
+  content: ''; position: absolute; left: 3px; top: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+}
+.toggle-input:checked + .toggle-slider { background: #6366f1; }
+.toggle-input:checked + .toggle-slider::after { transform: translateX(20px); }
+.toggle-text { font-size: 0.875rem; font-weight: 600; color: #475569; }
+.module-page[data-theme="dark"] .toggle-text { color: #cbd5e1; }
+.module-page[data-theme="dark"] .toggle-slider { background: #334155; }
 </style>

@@ -81,6 +81,7 @@ import { useSettingsStore } from '@/stores/settings'
 
 const settingsStore = useSettingsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
+window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const saving = ref(false)
 const saveSuccess = ref(false)
 
