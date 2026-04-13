@@ -150,7 +150,6 @@
         </tbody>
       </table>
     </div>
-
     <!-- ── Modal: Add / Edit ─────────────────────────────────────────────── -->
     <Teleport to="body">
       <transition name="modal-fade">
@@ -365,11 +364,15 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useProductsStore } from '@/stores/products'
+import { usePricelistStore } from '@/stores/pricelist'
 import AppCombobox from '@/components/AppCombobox.vue'
 
 const store = useProductsStore()
+const pricelistStore = usePricelistStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
+
+const activeTab = ref('products')
 
 const showModal = ref(false)
 const editTarget = ref(null)
@@ -381,7 +384,11 @@ const priceHistoryList = ref([])
 const form = reactive({ name: '', sku: '', categoryId: '', price: null, stock: null, lowStockThreshold: 10, imageFile: null, imagePreview: false })
 
 onMounted(async () => {
-  await Promise.all([store.fetchProducts(), store.fetchCategories()])
+  await Promise.all([
+    store.fetchProducts(),
+    store.fetchCategories(),
+    pricelistStore.fetchPricelists(),
+  ])
 })
 
 const fmt = (n) => (n ?? 0).toLocaleString('id-ID')
@@ -463,6 +470,112 @@ const marginClass = (pct) => {
   if (pct >= 25) return 'margin-good'
   if (pct >= 10) return 'margin-moderate'
   return 'margin-low'
+}
+
+// ── Pricelist helpers ──────────────────────────────────────────────────────
+const getProductHpp = (productId) => {
+  const p = store.getProductById(productId)
+  return p?.hpp ?? 0
+}
+const getProductNormalPrice = (productId) => {
+  const p = store.getProductById(productId)
+  return p?.sellingPrice ?? p?.price ?? 0
+}
+
+// ── Pricelist CRUD state ───────────────────────────────────────────────────
+const expandedPlId    = ref(null)
+const showPlModal     = ref(false)
+const plEditTarget    = ref(null)
+const plFormError     = ref('')
+const plForm          = reactive({ name: '', description: '' })
+
+const showAddItemModal  = ref(false)
+const addItemTargetPl   = ref(null)
+const addItemFormError  = ref('')
+const addItemForm       = reactive({ productId: '', eventPrice: 0 })
+
+// Products not yet in the target pricelist
+const availableProductsForPl = computed(() => {
+  if (!addItemTargetPl.value) return store.products
+  const existingIds = pricelistStore.getItemsByPricelist(addItemTargetPl.value.id)
+    .map(i => i.productId)
+  return store.products.filter(p => !existingIds.includes(p.id))
+})
+
+const openPlModal = (pl = null) => {
+  plEditTarget.value = pl
+  plFormError.value = ''
+  Object.assign(plForm, { name: pl?.name ?? '', description: pl?.description ?? '' })
+  showPlModal.value = true
+}
+
+const handlePlSubmit = async () => {
+  plFormError.value = ''
+  const result = plEditTarget.value
+    ? await pricelistStore.updatePricelist(plEditTarget.value.id, { name: plForm.name, description: plForm.description })
+    : await pricelistStore.addPricelist({ name: plForm.name, description: plForm.description })
+  if (result.success) { showPlModal.value = false }
+  else { plFormError.value = result.message }
+}
+
+const handleTogglePricelist = async (pl) => {
+  if (pl.is_active) {
+    if (confirm('Nonaktifkan event ini?')) await pricelistStore.deactivateAll()
+  } else {
+    if (confirm(`Aktifkan "${pl.name}"? Event lain yang sedang aktif akan dinonaktifkan.`)) {
+      await pricelistStore.activatePricelist(pl.id)
+    }
+  }
+}
+
+const handleDeactivateAll = async () => {
+  if (confirm('Nonaktifkan semua event?')) await pricelistStore.deactivateAll()
+}
+
+const handleDeletePricelist = async (pl) => {
+  if (confirm(`Hapus event "${pl.name}"? Semua harga event di dalamnya juga akan dihapus.`)) {
+    await pricelistStore.deletePricelist(pl.id)
+    if (expandedPlId.value === pl.id) expandedPlId.value = null
+  }
+}
+
+const openAddItemModal = (pl) => {
+  addItemTargetPl.value = pl
+  addItemFormError.value = ''
+  Object.assign(addItemForm, { productId: '', eventPrice: 0 })
+  showAddItemModal.value = true
+}
+
+const onAddItemProductSelect = (product) => {
+  if (!product) return
+  addItemForm.productId = product.id
+  // Pre-fill with normal selling price as starting point
+  addItemForm.eventPrice = product.sellingPrice ?? product.price ?? 0
+}
+
+const handleAddPlItem = async () => {
+  addItemFormError.value = ''
+  const product = store.getProductById(addItemForm.productId)
+  if (!product) { addItemFormError.value = 'Produk tidak valid'; return }
+  const result = await pricelistStore.addPricelistItem(
+    addItemTargetPl.value.id,
+    product,
+    addItemForm.eventPrice
+  )
+  if (result.success) { showAddItemModal.value = false }
+  else { addItemFormError.value = result.message }
+}
+
+const handleUpdateItemPrice = async (pli, rawValue) => {
+  const newPrice = parseInt(rawValue)
+  if (isNaN(newPrice) || newPrice < 0) return
+  await pricelistStore.updatePricelistItem(pli.id, newPrice)
+}
+
+const handleRemovePlItem = async (pli) => {
+  if (confirm(`Hapus "${pli.productName}" dari pricelist ini?`)) {
+    await pricelistStore.removePricelistItem(pli.id)
+  }
 }
 
 </script>
@@ -1724,4 +1837,183 @@ const marginClass = (pct) => {
   margin-right: 0.75rem;
 }
 .field-hint { font-size: 0.78rem; color: var(--success, #059669); font-weight: 500; }
+
+/* ── Tab Navigation ─────────────────────────────────────────────────── */
+.page-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 2px solid var(--border-light);
+  margin-bottom: 1.5rem;
+}
+.page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -2px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  transition: var(--transition);
+}
+.page-tab:hover { color: var(--accent); }
+.page-tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--accent-soft); }
+.tab-badge {
+  font-size: 0.6rem; font-weight: 800; letter-spacing: 0.07em;
+  padding: 0.15rem 0.45rem; border-radius: 999px;
+}
+.tab-badge.active-event { background: rgba(5,150,105,0.15); color: #059669; }
+
+/* ── Pricelist Panel ────────────────────────────────────────────────── */
+.pl-panel { padding-top: 0.5rem; }
+.pl-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 0;
+}
+.pl-title { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.25rem; }
+.pl-subtitle { font-size: 0.85rem; color: var(--text-secondary); margin: 0; }
+
+.pl-active-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.pl-deactivate-btn {
+  margin-left: auto;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.pl-deactivate-btn:hover { background: var(--success); color: #fff; border-color: var(--success); }
+
+/* ── Toggle Switch ──────────────────────────────────────────────────── */
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  margin-right: 0.5rem;
+}
+.toggle-switch input { display: none; }
+.toggle-slider {
+  position: relative;
+  display: inline-block;
+  width: 38px; height: 20px;
+  background: var(--border-strong);
+  border-radius: 999px;
+  transition: var(--transition);
+}
+.toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 14px; height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: var(--transition);
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--success); }
+.toggle-switch input:checked + .toggle-slider::after { transform: translateX(18px); }
+
+/* ── Pricelist Items expanded row ───────────────────────────────────── */
+.pl-items-row td { padding: 0 !important; }
+.pl-items-cell {
+  padding: 1rem 1.5rem !important;
+  background: var(--surface-elevated);
+  border-top: 1px solid var(--border-light);
+}
+.pl-items-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.pl-items-title { font-weight: 600; font-size: 0.875rem; color: var(--text-primary); }
+.btn-add-item {
+  padding: 0.35rem 0.875rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-add-item:hover { background: var(--accent); color: #fff; }
+
+.pl-items-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.pl-items-table th { padding: 0.5rem 0.75rem; text-align: left; color: var(--text-tertiary); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border-light); }
+.pl-items-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border-light); color: var(--text-primary); vertical-align: middle; }
+.pl-items-table tr:last-child td { border-bottom: none; }
+
+/* ── Event price input ──────────────────────────────────────────────── */
+.event-price-input { display: flex; align-items: center; gap: 0.35rem; }
+.input-sm { width: 110px !important; padding: 0.35rem 0.6rem !important; font-size: 0.83rem !important; }
+.input-loss { border-color: var(--danger) !important; background: var(--danger-soft) !important; }
+
+/* ── Loss Alert ─────────────────────────────────────────────────────── */
+.loss-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid rgba(220,38,38,0.25);
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.loss-alert-form {
+  display: block;
+  margin-top: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  font-size: 0.825rem;
+  white-space: normal;
+}
+.safe-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--success);
+  background: var(--success-soft);
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+/* ── HPP Info ───────────────────────────────────────────────────────── */
+.hpp-info {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-elevated);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
 </style>

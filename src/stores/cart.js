@@ -4,6 +4,8 @@ import apiClient from '@/api/client'
 import { useAuthStore } from './auth'
 import { useProductsStore } from './products'
 import { useShiftStore } from './shift'
+import { usePricelistStore } from './pricelist'
+import { useDiscountsStore } from './discounts'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
@@ -178,6 +180,46 @@ export const useCartStore = defineStore('cart', () => {
     return { success: false, message: 'Order not found' }
   }
 
+  // ── Stacked price helper ───────────────────────────────────────────────────
+  // Stacking order (akumulatif sesuai URD):
+  //   1. Base Price   → dari pricelist event aktif, atau harga normal
+  //   2. Event Flag   → tandai apakah sedang event
+  //   3. Member Disc  → potongan % member dari base price
+  //   4. Product Disc → potongan diskon per-produk setelah member discount
+  const _computeItemPrices = (productData, order) => {
+    const pricelistStore = usePricelistStore()
+    const basePrice = pricelistStore.getCurrentPrice(productData)
+    const isEventPrice = pricelistStore.hasActiveEvent &&
+      pricelistStore.getEventPrice(productData.id) !== null
+
+    // Step 3: Member discount
+    const memberDiscountPct = order.member?.discountPercent ?? 0
+    const priceAfterMember = Math.round(basePrice * (1 - memberDiscountPct / 100) * 100) / 100
+
+    // Step 4: Per-product discount (Langkah 3 URD)
+    // useDiscountsStore() is a sync Pinia singleton — safely callable here
+    let priceAfterProductDisc = priceAfterMember
+    let itemPromoDiscount = 0
+    let itemPromoLabel = null
+
+    try {
+      const discStore = useDiscountsStore()
+      const activeProductDiscs = discStore.getActiveProductDiscounts(productData.id)
+      if (activeProductDiscs.length > 0) {
+        const disc = activeProductDiscs[0]
+        itemPromoDiscount = disc.type === 'PERCENTAGE'
+          ? Math.round(priceAfterMember * disc.value / 100 * 100) / 100
+          : Math.min(disc.value, priceAfterMember)
+        priceAfterProductDisc = Math.max(0, Math.round((priceAfterMember - itemPromoDiscount) * 100) / 100)
+        itemPromoLabel = disc.name
+      }
+    } catch (_) {
+      // discountsStore belum terinisialisasi — lewati saja
+    }
+
+    return { basePrice, isEventPrice, priceAfterMember, priceAfterProductDisc, itemPromoDiscount, itemPromoLabel }
+  }
+
   const addItem = (orderId, productData) => {
     const order = orders.value.find(o => o.id === orderId)
     if (!order) {
@@ -186,6 +228,8 @@ export const useCartStore = defineStore('cart', () => {
 
     // Detect bundle/package products
     const isBundle = productData.type === 'BUNDLE' && Array.isArray(productData.bundleItems)
+
+    const { basePrice, isEventPrice, priceAfterMember, priceAfterProductDisc, itemPromoDiscount, itemPromoLabel } = _computeItemPrices(productData, order)
 
     // FIX BUG-1: Merge duplicate products instead of creating new rows
     const existingIndex = order.items.findIndex(i => i.productId === productData.id)
@@ -202,14 +246,21 @@ export const useCartStore = defineStore('cart', () => {
         useProductsStore().reserveStock(productData.id, 1)
       }
     } else {
-      // FIX BUG-2: No per-item discount field — use order-level discountPercent only
       order.items.push({
         productId: productData.id,
         name: productData.name,
         quantity: 1,
-        price: productData.sellingPrice,
-        hpp: productData.hpp || 0,
-        subtotal: productData.sellingPrice,
+        // Pricing snapshot at time of add
+        basePrice,                    // Harga normal / event pricelist
+        isEventPrice,                 // true jika menggunakan harga event
+        priceAfterMember,             // Harga setelah diskon member
+        price: priceAfterProductDisc, // Harga FINAL per unit (setelah semua diskon)
+        // Diskon per-produk (Langkah 3 & 4 URD)
+        itemPromoDiscount: itemPromoDiscount || 0,  // Nominal potongan per unit
+        itemPromoLabel: itemPromoLabel || null,   // Label "Diskon Promo" di kasir
+        // HPP snapshot
+        hpp: isBundle ? (productData.bundleHpp ?? 0) : (productData.hpp || 0),
+        subtotal: priceAfterProductDisc, // 1 × price final
         // Bundle metadata
         isBundle,
         bundleItems: isBundle ? productData.bundleItems : undefined,
@@ -278,7 +329,7 @@ export const useCartStore = defineStore('cart', () => {
     }
 
     item.quantity = quantity
-    // FIX BUG-2: No per-item discount — subtotal is price * quantity
+    // Subtotal uses priceAfterMember (stored in `price`) × qty
     item.subtotal = Math.round(item.price * quantity * 100) / 100
     order.lastModified = new Date().toISOString()
     updateOrderSummary(orderId)
@@ -291,7 +342,10 @@ export const useCartStore = defineStore('cart', () => {
     const order = orders.value.find(o => o.id === orderId)
     if (!order) return
 
+    // subtotal = ∑ (priceAfterMember × qty) — already stored in item.subtotal
     const subtotal = order.items.reduce((sum, item) => sum + item.subtotal, 0)
+
+    // Transaction-level discount applied on top of member-discounted subtotal
     const discountAmount = (subtotal * (order.summary.discountPercent || 0)) / 100
     const taxAmount = ((subtotal - discountAmount) * (order.summary.taxPercent || 0)) / 100
 
@@ -299,10 +353,10 @@ export const useCartStore = defineStore('cart', () => {
     order.summary.tax = Math.round(taxAmount * 100) / 100
     order.summary.total = Math.round((subtotal - discountAmount + taxAmount) * 100) / 100
 
-    // Calculate profit estimate
+    // Profit estimate uses basePrice (before member discount) vs hpp
     order.metadata.profitEstimate = order.items.reduce((profit, item) => {
-      const itemProfit = (item.price - item.hpp) * item.quantity
-      return profit + itemProfit
+      const unitBase = item.basePrice ?? item.price  // fall back for legacy items
+      return profit + (unitBase - (item.hpp || 0)) * item.quantity
     }, 0)
   }
 

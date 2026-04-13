@@ -13,6 +13,9 @@
         <span class="brand-wordmark">Nextore</span>
         <span class="topbar-separator"></span>
         <span class="topbar-context">Point of Sale</span>
+        <span v-if="pricelistStore.hasActiveEvent" class="topbar-event-chip">
+          🏷️ {{ pricelistStore.activePricelist?.name }}
+        </span>
       </div>
 
       <div class="topbar-actions">
@@ -203,7 +206,10 @@
               class="cart-row"
             >
               <div class="row-info">
-                <p class="row-name">{{ item.name }}</p>
+                <p class="row-name">
+                  {{ item.name }}
+                  <span v-if="item.isEventPrice" class="event-badge">🏷️ Event</span>
+                </p>
                 <p class="row-price">Rp {{ formatCurrency(item.price) }}</p>
               </div>
               <div class="row-controls">
@@ -485,6 +491,7 @@ import { useCartStore }    from '@/stores/cart'
 import { useMembersStore } from '@/stores/members'
 import { useShiftStore }   from '@/stores/shift'
 import { useDiscountsStore } from '@/stores/discounts'  // B4
+import { usePricelistStore } from '@/stores/pricelist'
 import { useRouter }       from 'vue-router'
 
 import { useStaffStore } from '@/stores/staff'
@@ -495,6 +502,7 @@ const cartStore     = useCartStore()
 const membersStore  = useMembersStore()
 const shiftStore    = useShiftStore()
 const discountsStore = useDiscountsStore()  // B4
+const pricelistStore = usePricelistStore()
 const staffStore    = useStaffStore()
 const router        = useRouter()
 
@@ -870,6 +878,7 @@ onMounted(async () => {
     productsStore.fetchCategories(),
     membersStore.fetchMembers(),
     staffStore.fetchStaff(),
+    pricelistStore.fetchPricelists(),
   ])
   if (!activeOrder.value) cartStore.createOrder()
 
@@ -1009,6 +1018,21 @@ const openCFD = () => {
   color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.topbar-event-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  background: rgba(251,191,36,0.15);
+  border: 1px solid rgba(251,191,36,0.4);
+  color: #b45309;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .topbar-actions {
@@ -1616,9 +1640,22 @@ const openCFD = () => {
   font-weight: 600;
   color: var(--text-primary);
   margin: 0 0 0.25rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.event-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(251,191,36,0.18);
+  border: 1px solid rgba(251,191,36,0.4);
+  color: #b45309;
+  letter-spacing: 0.02em;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .row-price {

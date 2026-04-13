@@ -8,10 +8,10 @@ const MOCK_DISCOUNTS = [
     {
         id: 'disc-1',
         name: 'Diskon Member Gold',
-        type: 'PERCENTAGE', // PERCENTAGE | NOMINAL
-        value: 10,          // 10% or Rp10.000
-        target: 'MEMBER',   // PRODUCT | MEMBER | TRANSACTION
-        targetId: null,      // specific product/member id, null = all
+        type: 'PERCENTAGE',
+        value: 10,
+        target: 'MEMBER',
+        appliedProductIds: [],  // digunakan hanya saat target === 'PRODUCT'
         startDate: '2024-01-01',
         endDate: '2024-12-31',
         isActive: true,
@@ -23,7 +23,7 @@ const MOCK_DISCOUNTS = [
         type: 'PERCENTAGE',
         value: 15,
         target: 'TRANSACTION',
-        targetId: null,
+        appliedProductIds: [],
         startDate: '2024-12-01',
         endDate: '2024-12-31',
         isActive: true,
@@ -31,14 +31,15 @@ const MOCK_DISCOUNTS = [
     },
     {
         id: 'disc-3',
-        name: 'Diskon Es Teh',
+        name: 'Diskon Produk Makanan',
         type: 'NOMINAL',
         value: 2000,
         target: 'PRODUCT',
-        targetId: 'prod-1',
-        startDate: '2024-06-01',
-        endDate: '2024-06-30',
-        isActive: false,
+        // Contoh: berlaku untuk Nasi Goreng Spesial & Mie Ayam Bakso
+        appliedProductIds: ['prod-1', 'prod-2'],
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+        isActive: true,
         createdAt: '2024-05-28T00:00:00.000Z',
     },
 ]
@@ -192,11 +193,29 @@ export const useDiscountsStore = defineStore('discounts', () => {
         return update(id, { isActive: !disc.isActive })
     }
 
+    /**
+     * Langkah 3 – cart.js integration:
+     * Kembalikan semua diskon aktif bertipe PRODUCT yang mencakup productId tertentu.
+     * Digunakan oleh _computeItemPrices di cart.js untuk menerapkan diskon per-produk.
+     */
+    const getActiveProductDiscounts = (productId) => {
+        const now = new Date().toISOString().split('T')[0]
+        return discounts.value.filter(d =>
+            d.isActive &&
+            d.target === 'PRODUCT' &&
+            d.startDate <= now &&
+            d.endDate >= now &&
+            Array.isArray(d.appliedProductIds) &&
+            d.appliedProductIds.includes(productId)
+        )
+    }
+
     return {
         discounts, loading, error, searchTerm, targetFilter,
         filtered, activeDiscounts,
         DISCOUNT_TYPES, DISCOUNT_TARGETS,
         getDiscountLabel, getTargetLabel,
         fetchAll, add, update, remove, toggleActive,
+        getActiveProductDiscounts,
     }
 })

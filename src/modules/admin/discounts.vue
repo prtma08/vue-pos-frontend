@@ -33,7 +33,12 @@
           <tr v-if="store.filtered.length === 0"><td colspan="8" class="empty-row">Tidak ada diskon ditemukan.</td></tr>
           <tr v-for="(d, i) in store.filtered" :key="d.id" class="table-row">
             <td class="col-idx">{{ i + 1 }}</td>
-            <td><span class="cell-name-text">{{ d.name }}</span></td>
+            <td>
+              <span class="cell-name-text">{{ d.name }}</span>
+              <span v-if="d.target === 'PRODUCT' && d.appliedProductIds?.length" class="product-count-badge">
+                {{ d.appliedProductIds.length }} produk
+              </span>
+            </td>
             <td><span class="badge" :class="d.type === 'PERCENTAGE' ? 'badge-blue' : 'badge-green'">{{ d.type === 'PERCENTAGE' ? '%' : 'Rp' }}</span></td>
             <td class="col-val">{{ store.getDiscountLabel(d) }}</td>
             <td><span class="badge badge-outline">{{ store.getTargetLabel(d.target) }}</span></td>
@@ -84,6 +89,37 @@
                   <option v-for="t in store.DISCOUNT_TARGETS" :key="t.value" :value="t.value">{{ t.label }}</option>
                 </select>
               </div>
+
+              <!-- ── Product Picker (shown only when target = PRODUCT) ── -->
+              <transition name="fade-slide">
+                <div v-if="form.target === 'PRODUCT'" class="product-picker-section">
+                  <label class="form-label">Produk Tertarget <span class="req">*</span></label>
+                  <AppCombobox
+                    :model-value="null"
+                    :options="availableProducts"
+                    option-key="id"
+                    option-label="name"
+                    option-sub-label="sku"
+                    placeholder="Cari & tambah produk..."
+                    search-placeholder="Ketik nama atau SKU"
+                    :clearable="false"
+                    @update:model-value="addTargetProduct"
+                  />
+                  <!-- Chip list of selected products -->
+                  <div v-if="form.appliedProductIds.length > 0" class="target-chip-list">
+                    <div
+                      v-for="pid in form.appliedProductIds"
+                      :key="pid"
+                      class="target-chip"
+                    >
+                      <span class="chip-name">{{ getProductName(pid) }}</span>
+                      <code class="chip-sku">{{ getProductSku(pid) }}</code>
+                      <button type="button" class="chip-remove" @click="removeTargetProduct(pid)" title="Hapus">×</button>
+                    </div>
+                  </div>
+                  <p v-else class="no-product-hint">Belum ada produk dipilih. Cari dan tambahkan produk di atas.</p>
+                </div>
+              </transition>
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Mulai <span class="req">*</span></label>
@@ -137,26 +173,56 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useDiscountsStore } from '@/stores/discounts'
+import { useProductsStore } from '@/stores/products'
+import AppCombobox from '@/components/AppCombobox.vue'
 
 const store = useDiscountsStore()
+const productsStore = useProductsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
-const showModal = ref(false)
-const editTarget = ref(null)
+const showModal   = ref(false)
+const editTarget  = ref(null)
 const deleteTarget = ref(null)
-const formError = ref('')
-const form = reactive({ name: '', type: 'PERCENTAGE', value: 0, target: 'TRANSACTION', startDate: '', endDate: '', isActive: true })
+const formError   = ref('')
+const form = reactive({
+  name: '', type: 'PERCENTAGE', value: 0,
+  target: 'TRANSACTION',
+  appliedProductIds: [],   // ← Langkah 2: field baru untuk per-produk
+  startDate: '', endDate: '', isActive: true
+})
 
-onMounted(() => store.fetchAll())
+onMounted(() => { store.fetchAll(); productsStore.fetchProducts() })
+
+// Products excluding already-selected
+const availableProducts = computed(() =>
+  productsStore.products.filter(p =>
+    p.type !== 'BUNDLE' && !form.appliedProductIds.includes(p.id)
+  )
+)
+
+const getProductName = (id) => productsStore.products.find(p => p.id === id)?.name ?? id
+const getProductSku  = (id) => productsStore.products.find(p => p.id === id)?.sku  ?? ''
+
+const addTargetProduct    = (id) => { if (id && !form.appliedProductIds.includes(id)) form.appliedProductIds.push(id) }
+const removeTargetProduct = (id) => { form.appliedProductIds = form.appliedProductIds.filter(x => x !== id) }
 
 const formatDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 const openModal = (d = null) => {
   editTarget.value = d
-  formError.value = ''
-  Object.assign(form, { name: d?.name || '', type: d?.type || 'PERCENTAGE', value: d?.value || 0, target: d?.target || 'TRANSACTION', startDate: d?.startDate || '', endDate: d?.endDate || '', isActive: d?.isActive !== false })
+  formError.value  = ''
+  Object.assign(form, {
+    name:    d?.name    || '',
+    type:    d?.type    || 'PERCENTAGE',
+    value:   d?.value   || 0,
+    target:  d?.target  || 'TRANSACTION',
+    appliedProductIds: d?.appliedProductIds ? [...d.appliedProductIds] : [],
+    startDate: d?.startDate || '',
+    endDate:   d?.endDate   || '',
+    isActive:  d?.isActive  !== false,
+  })
   showModal.value = true
 }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
@@ -165,8 +231,13 @@ const handleSubmit = async () => {
   formError.value = ''
   if (form.type === 'PERCENTAGE' && (form.value < 0 || form.value > 100)) { formError.value = 'Persentase harus 0-100'; return }
   if (form.startDate > form.endDate) { formError.value = 'Tanggal mulai harus sebelum tanggal berakhir'; return }
-  const payload = { ...form, name: form.name.trim() }
-  const result = editTarget.value ? await store.update(editTarget.value.id, payload) : await store.add(payload)
+  // Langkah 4 Validasi: Per Produk wajib punya minimal 1 produk
+  if (form.target === 'PRODUCT' && form.appliedProductIds.length === 0) {
+    formError.value = 'Target "Per Produk" wajib memilih minimal 1 produk'
+    return
+  }
+  const payload = { ...form, appliedProductIds: [...form.appliedProductIds], name: form.name.trim() }
+  const result  = editTarget.value ? await store.update(editTarget.value.id, payload) : await store.add(payload)
   if (result.success) closeModal()
   else formError.value = result.message
 }
@@ -297,4 +368,49 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 .toggle-text { font-size: 0.875rem; font-weight: 600; color: #475569; }
 .module-page[data-theme="dark"] .toggle-text { color: #cbd5e1; }
 .module-page[data-theme="dark"] .toggle-slider { background: #334155; }
+
+/* ── Fix background-clip lint ── */
+.page-title { background: linear-gradient(135deg, #1e293b, #475569); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.module-page[data-theme="dark"] .page-title { background: linear-gradient(135deg, #f1f5f9, #cbd5e1); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+
+/* ── Product Picker Section ── */
+.product-picker-section {
+  background: linear-gradient(135deg, rgba(99,102,241,0.04), rgba(139,92,246,0.04));
+  border: 1.5px dashed rgba(99,102,241,0.25);
+  border-radius: 14px;
+  padding: 1rem 1.1rem 0.75rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.target-chip-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 160px; overflow-y: auto; }
+.target-chip {
+  display: flex; align-items: center; gap: 0.5rem;
+  background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 10px; padding: 0.45rem 0.75rem;
+}
+.chip-name { font-size: 0.85rem; font-weight: 600; color: #1e293b; flex: 1; }
+.module-page[data-theme="dark"] .chip-name { color: #f1f5f9; }
+.chip-sku  { font-size: 0.72rem; background: rgba(99,102,241,0.12); color: #6366f1; padding: 0.1rem 0.4rem; border-radius: 4px; }
+.chip-remove {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1px solid rgba(220,38,38,0.3); background: rgba(220,38,38,0.07);
+  color: #dc2626; font-size: 1rem; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s;
+}
+.chip-remove:hover { background: #dc2626; color: #fff; }
+.no-product-hint { font-size: 0.8rem; color: #94a3b8; text-align: center; padding: 0.5rem; margin: 0; }
+
+/* ── Product count badge in table ── */
+.product-count-badge {
+  display: inline-flex; padding: 0.15rem 0.55rem; margin-left: 0.5rem;
+  background: rgba(99,102,241,0.1); color: #6366f1;
+  border-radius: 999px; font-size: 0.68rem; font-weight: 700;
+}
+
+/* ── Fade-slide transition for picker ── */
+.fade-slide-enter-active, .fade-slide-leave-active { transition: all 0.25s ease; }
+.fade-slide-enter-from, .fade-slide-leave-to { opacity: 0; transform: translateY(-8px); }
 </style>
+
