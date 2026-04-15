@@ -75,7 +75,7 @@
             <form @submit.prevent="handleSubmit" class="modal-form">
               <div class="form-group">
                 <label class="form-label">Nama Lengkap <span class="required">*</span></label>
-                <input v-model="form.name" class="input-field" type="text" placeholder="contoh: Budi Santoso" required/>
+                <input v-model="form.name" class="input-field" type="text" placeholder="contoh: Budi Darma" required/>
               </div>
               <div class="form-group">
                 <label class="form-label">No. Telepon <span class="required">*</span></label>
