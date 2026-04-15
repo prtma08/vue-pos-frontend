@@ -983,7 +983,6 @@ const handleRemovePlItem = async (pli) => {
   white-space: nowrap;
 }
 
-.data-table th.th-price,
 .data-table th.th-hpp,
 .data-table th.th-stock,
 .data-table th.th-actions {
@@ -1041,7 +1040,7 @@ const handleRemovePlItem = async (pli) => {
 .th-category { min-width: 130px; }
 .th-price { 
   min-width: 140px; 
-  text-align: center;
+  text-align: left;
 }
 .th-hpp { 
   min-width: 130px; 
@@ -1126,8 +1125,8 @@ const handleRemovePlItem = async (pli) => {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 700;
   color: var(--accent);
-  text-align: center;
-  padding: 0.875rem 0.5rem;
+  text-align: left;
+  padding: 0.875rem 0.75rem;
   letter-spacing: -0.3px;
 }
 
@@ -1148,7 +1147,6 @@ const handleRemovePlItem = async (pli) => {
   text-align: center;
 }
 
-.col-price,
 .col-hpp {
   text-align: center;
 }

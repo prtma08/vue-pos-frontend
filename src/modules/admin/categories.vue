@@ -45,7 +45,10 @@
               </div>
             </td>
             <td class="col-desc">{{ cat.description || '—' }}</td>
-            <td><span class="expiry-badge" :class="cat.hasExpiration ? 'yes' : 'no'">{{ cat.hasExpiration ? '✅ Ya' : '—' }}</span></td>
+            <td>
+              <span v-if="cat.hasExpiration" class="expiry-badge yes">✅ Ya</span>
+              <span v-else class="expiry-na">tidak ada</span>
+            </td>
             <td class="col-date">{{ formatDate(cat.createdAt) }}</td>
             <td class="col-actions">
               <button class="action-btn edit" @click="openModal(cat)" title="Edit">
@@ -611,6 +614,17 @@ const handleDelete = async () => {
 
 .module-page[data-theme="dark"] .cell-name span {
   color: #f1f5f9;
+}
+
+/* ── ✦ Expiry Placeholder ───────────────────────────────────────── */
+.expiry-na {
+  font-style: italic;
+  color: #94a3b8;
+  font-size: 0.825rem;
+}
+
+.module-page[data-theme="dark"] .expiry-na {
+  color: #64748b;
 }
 
 /* ── ✦ Action Buttons ───────────────────────────────────────────── */

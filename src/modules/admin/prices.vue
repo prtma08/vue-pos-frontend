@@ -695,10 +695,13 @@ const handleRemovePlItem = async (pli) => {
 /* ── Expanded Items ─────────────────────────────────────────────── */
 .pl-items-row td { padding: 0 !important; }
 .pl-items-cell {
-  padding: 1.25rem 1.75rem !important;
-  background: var(--surface-elevated);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  padding: 1.5rem 2rem !important;
+  background: linear-gradient(135deg, rgba(99,102,241,0.03), rgba(139,92,246,0.03));
+  border-top: 1.5px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
+}
+.module-page[data-theme="dark"] .pl-items-cell {
+  background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.04));
 }
 .pl-items-header {
   display: flex;
@@ -735,27 +738,47 @@ const handleRemovePlItem = async (pli) => {
   border-radius: var(--radius-md);
 }
 
-.pl-items-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.pl-items-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.83rem;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
 .pl-items-table th {
-  padding: 0.5rem 0.875rem;
+  padding: 0.625rem 1rem;
   text-align: left;
   color: var(--text-tertiary);
   font-weight: 700;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  border-bottom: 1.5px solid var(--border);
+  background: var(--surface-elevated);
 }
 .pl-items-table td {
-  padding: 0.625rem 0.875rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border);
   color: var(--text-primary);
   vertical-align: middle;
 }
 .pl-items-table tr:last-child td { border-bottom: none; }
+.pl-items-table tbody tr:hover td {
+  background: rgba(99,102,241,0.04);
+}
+.module-page[data-theme="dark"] .pl-items-table {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
 
-.col-prod-name { font-weight: 600; }
+.col-prod-name {
+  font-weight: 700;
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
+}
 .col-hpp { color: var(--text-secondary); }
 .col-normal { color: var(--text-secondary); }
 .sku-chip {

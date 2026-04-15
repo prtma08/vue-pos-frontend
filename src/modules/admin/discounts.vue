@@ -324,7 +324,7 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 .module-page[data-theme="dark"] .modal-close { background: #334155; color: #94a3b8; }
 .modal-close:hover { background: #f1f5f9; color: #1e293b; }
 .module-page[data-theme="dark"] .modal-close:hover { background: #475569; color: #f1f5f9; }
-.modal-form { padding: 2rem; }
+.modal-form { padding: 2rem; max-height: 70vh; overflow-y: auto; }
 .form-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .form-label { font-size: 0.825rem; font-weight: 600; color: #475569; }
@@ -384,7 +384,7 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
   flex-direction: column;
   gap: 0.75rem;
 }
-.target-chip-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 160px; overflow-y: auto; }
+.target-chip-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 240px; overflow-y: auto; }
 .target-chip {
   display: flex; align-items: center; gap: 0.5rem;
   background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2);

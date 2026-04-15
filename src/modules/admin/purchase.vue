@@ -245,16 +245,6 @@
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                       </svg>
                     </button>
-                    <button
-                      v-if="!rec.voided"
-                      class="action-btn void-btn"
-                      @click="openVoid(rec)"
-                      title="Batalkan Transaksi (Superuser)"
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-                      </svg>
-                    </button>
                   </div>
                 </td>
               </tr>
@@ -613,7 +603,7 @@ onMounted(async () => {
 @media (max-width: 1024px) { .layout-grid { grid-template-columns: 1fr; } }
 
 /* ── Form Card ── */
-.form-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1.75rem; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+.form-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1.75rem; box-shadow: 0 4px 24px rgba(0,0,0,0.06); overflow: hidden; word-break: break-word; }
 .form-card-header { display: flex; align-items: center; gap: 0.625rem; margin-bottom: 1.25rem; color: var(--text2); }
 .section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--text1); margin: 0; }
 
@@ -666,7 +656,7 @@ onMounted(async () => {
 .btn-full { width: 100%; margin-top: 0.25rem; }
 
 /* ── History Panel ── */
-.history-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1.75rem; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+.history-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1.75rem; box-shadow: 0 4px 24px rgba(0,0,0,0.06); overflow: hidden; word-break: break-word; }
 .history-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
 .history-title-wrap { display: flex; align-items: center; gap: 0.625rem; }
 .history-count-badge { padding: 0.15rem 0.55rem; background: rgba(99,102,241,0.12); color: var(--accent); border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
@@ -712,16 +702,20 @@ onMounted(async () => {
 
 /* ── Modal ── */
 .modal-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(15,23,42,0.55); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
-.modal-box { background: var(--surface); border-radius: 20px; width: 100%; max-width: 520px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); overflow: hidden; }
+.modal-box { background: #ffffff; border-radius: 20px; width: 100%; max-width: 520px; box-shadow: 0 25px 80px rgba(0,0,0,0.3), 0 10px 40px rgba(0,0,0,0.15); overflow: hidden; }
+.module-page[data-theme="dark"] .modal-box { background: #0f172a; border: 1px solid #334155; box-shadow: 0 25px 80px rgba(0,0,0,0.5); }
 .modal-sm { max-width: 420px; }
-.modal-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 1.5rem 1.75rem 1.25rem; border-bottom: 1px solid var(--border); background: var(--surface2); }
+.modal-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 1.5rem 1.75rem 1.25rem; border-bottom: 1px solid var(--border); background: #f8fafc; }
+.module-page[data-theme="dark"] .modal-header { background: #1e293b; }
 .modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--text1); margin: 0; }
 .modal-sub { font-size: 0.78rem; color: var(--text3); margin: 0.2rem 0 0; }
 .danger-title { color: var(--danger); }
 .modal-close { width: 30px; height: 30px; border: none; background: none; font-size: 1.4rem; color: var(--text3); cursor: pointer; border-radius: 7px; display: flex; align-items: center; justify-content: center; }
 .modal-close:hover { background: rgba(220,38,38,0.1); color: var(--danger); }
-.modal-body { padding: 1.5rem 1.75rem; }
-.modal-footer { display: flex; justify-content: flex-end; gap: 0.75rem; padding: 1.25rem 1.75rem; border-top: 1px solid var(--border); background: var(--surface2); }
+.modal-body { padding: 1.5rem 1.75rem; background: #ffffff; }
+.module-page[data-theme="dark"] .modal-body { background: #0f172a; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 0.75rem; padding: 1.25rem 1.75rem; border-top: 1px solid var(--border); background: #f8fafc; }
+.module-page[data-theme="dark"] .modal-footer { background: #1e293b; }
 
 /* ── Detail Grid ── */
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem; }
