@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
@@ -164,6 +164,14 @@ export const useUsersStore = defineStore('users', () => {
             return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
+
+    let searchTimeout
+    watch(searchTerm, (newVal) => {
+        clearTimeout(searchTimeout)
+        searchTimeout = setTimeout(() => {
+            fetchAll({ search: newVal, page: 1 })
+        }, 500)
+    })
 
     return {
         users, loading, error, pagination, searchTerm, roleFilter, filtered,

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import apiClient from '@/api/client'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
@@ -547,6 +547,14 @@ export const useProductsStore = defineStore('products', () => {
     product.stock += releaseQty
     product.isLowStock = product.stock <= (product.lowStockThreshold ?? lowStockThreshold.value)
   }
+
+  let searchTimeout
+  watch(() => filters.value.searchTerm, (newVal) => {
+      clearTimeout(searchTimeout)
+      searchTimeout = setTimeout(() => {
+          fetchProducts({ search: newVal, page: 1 })
+      }, 500)
+  })
 
   return {
     // State

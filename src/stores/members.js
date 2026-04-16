@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
@@ -157,6 +157,14 @@ export const useMembersStore = defineStore('members', () => {
         const q = query.toLowerCase()
         return members.value.filter(m => m.name.toLowerCase().includes(q) || m.phone.includes(q))
     }
+
+    let searchTimeout
+    watch(searchTerm, (newVal) => {
+        clearTimeout(searchTimeout)
+        searchTimeout = setTimeout(() => {
+            fetchMembers({ search: newVal, page: 1 })
+        }, 500)
+    })
 
     return { members, discounts, loading, error, pagination, searchTerm, filtered, fetchMembers, fetchDiscounts, add, update, remove, getMemberById, searchMembers }
 })

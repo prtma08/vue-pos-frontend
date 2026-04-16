@@ -87,15 +87,16 @@ const visiblePages = computed(() => {
 })
 </script>
 
-<style scoped>
+<style>
+/* ── AppPagination — uses CSS variables that auto-switch with [data-theme] ── */
 .app-pagination {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem 1.5rem;
-  background: var(--surface-card, #ffffff);
-  border-top: 1px solid var(--border-light, #e2e8f0);
-  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 }
 
 @media (max-width: 640px) {
@@ -112,11 +113,11 @@ const visiblePages = computed(() => {
 
 .pagination-info {
   font-size: 0.85rem;
-  color: var(--text-secondary, #475569);
+  color: var(--text-secondary);
 }
 
 .pagination-info strong {
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -133,10 +134,10 @@ const visiblePages = computed(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm, 6px);
-  border: 1.5px solid var(--border-light, #e2e8f0);
-  background: var(--surface-base, #ffffff);
-  color: var(--text-secondary, #475569);
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -144,15 +145,15 @@ const visiblePages = computed(() => {
 }
 
 .page-btn:hover:not(:disabled) {
-  border-color: var(--accent, #6366f1);
-  color: var(--accent, #6366f1);
-  background: var(--accent-soft, rgba(99, 102, 241, 0.1));
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .page-btn.active {
-  background: linear-gradient(135deg, var(--accent, #6366f1) 0%, #8b5cf6 100%);
-  color: #ffffff;
-  border-color: transparent;
+  background: var(--accent);
+  color: var(--text-inverse);
+  border-color: var(--accent);
 }
 
 .page-btn:disabled {
@@ -165,23 +166,6 @@ const visiblePages = computed(() => {
   background: transparent;
   pointer-events: none;
   min-width: 1.5rem;
-  color: var(--text-tertiary, #94a3b8);
-}
-
-/* Fallbacks and Dark Mode using attributes instead of wrapper classes since it's used globally */
-:global([data-theme="dark"]) .app-pagination {
-  background: transparent;
-}
-
-:global([data-theme="dark"]) .page-btn {
-  background: var(--surface-input-dark, #1e293b);
-  border-color: var(--border-dark, #334155);
-  color: var(--text-secondary-dark, #cbd5e1);
-}
-
-:global([data-theme="dark"]) .page-btn:hover:not(:disabled) {
-  border-color: var(--accent-dark, #818cf8);
-  color: var(--accent-dark, #818cf8);
-  background: var(--accent-soft-dark, rgba(129, 140, 248, 0.15));
+  color: var(--text-tertiary);
 }
 </style>

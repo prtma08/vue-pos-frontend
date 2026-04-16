@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
@@ -169,6 +169,14 @@ export const useTransactionsStore = defineStore('transactions', () => {
             hour: '2-digit', minute: '2-digit'
         })
     }
+
+    let searchTimeout
+    watch(searchTerm, (newVal) => {
+        clearTimeout(searchTimeout)
+        searchTimeout = setTimeout(() => {
+            fetchAll({ search: newVal, page: 1 })
+        }, 500)
+    })
 
     return {
         transactions, loading, error, pagination,
