@@ -17,8 +17,8 @@
         <input v-model="store.searchTerm" class="input-field search-input" type="text" placeholder="Cari Diskon..."/>
       </div>
       <div class="filter-row">
-        <button class="filter-pill" :class="{ active: !store.targetFilter }" @click="store.targetFilter = ''">Semua</button>
-        <button v-for="t in store.DISCOUNT_TARGETS" :key="t.value" class="filter-pill" :class="{ active: store.targetFilter === t.value }" @click="store.targetFilter = t.value">{{ t.label }}</button>
+        <button class="filter-pill" :class="{ active: !store.levelFilter }" @click="store.levelFilter = ''">Semua</button>
+        <button v-for="t in store.DISCOUNT_LEVELS" :key="t.value" class="filter-pill" :class="{ active: store.levelFilter === t.value }" @click="store.levelFilter = t.value">{{ t.label }}</button>
       </div>
     </div>
 
@@ -35,13 +35,13 @@
             <td class="col-idx">{{ i + 1 }}</td>
             <td>
               <span class="cell-name-text">{{ d.name }}</span>
-              <span v-if="d.target === 'PRODUCT' && d.appliedProductIds?.length" class="product-count-badge">
+              <span v-if="!d.isTransactionLevel && !d.isMemberLevel && d.appliedProductIds?.length" class="product-count-badge">
                 {{ d.appliedProductIds.length }} produk
               </span>
             </td>
             <td><span class="badge" :class="d.type === 'PERCENTAGE' ? 'badge-blue' : 'badge-green'">{{ d.type === 'PERCENTAGE' ? '%' : 'Rp' }}</span></td>
             <td class="col-val">{{ store.getDiscountLabel(d) }}</td>
-            <td><span class="badge badge-outline">{{ store.getTargetLabel(d.target) }}</span></td>
+            <td><span class="badge badge-outline">{{ store.getLevelLabel(d) }}</span></td>
             <td class="col-date">{{ formatDate(d.startDate) }} — {{ formatDate(d.endDate) }}</td>
             <td>
               <button class="status-toggle" :class="d.isActive ? 'active' : 'inactive'" @click="store.toggleActive(d.id)">
@@ -55,6 +55,14 @@
           </tr>
         </tbody>
       </table>
+      
+      <AppPagination 
+        :current-page="store.pagination.page"
+        :total-pages="store.pagination.totalPages"
+        :limit="store.pagination.limit"
+        :total-items="store.pagination.totalItems"
+        @page-change="(p) => store.fetchAll({ page: p })"
+      />
     </div>
 
     <!-- Modal: Add/Edit -->
@@ -69,30 +77,50 @@
             <form @submit.prevent="handleSubmit" class="modal-form">
               <div class="form-group">
                 <label class="form-label">Nama Diskon <span class="req">*</span></label>
-                <input v-model="form.name" class="input-field" type="text" placeholder="contoh: Promo Akhir Tahun" required/>
+                <input 
+                  v-model="form.name" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.name && fieldErrors.name }"
+                  type="text" 
+                  placeholder="contoh: Promo Akhir Tahun" 
+                  maxlength="100"
+                  @blur="touched.name = true"
+                  @input="fieldErrors.name = ''"
+                />
+                <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
               </div>
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Jenis <span class="req">*</span></label>
-                  <select v-model="form.type" class="input-field" required>
+                  <select v-model="form.type" class="input-field" @change="fieldErrors.value = ''">
                     <option v-for="t in store.DISCOUNT_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
                   </select>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Nilai <span class="req">*</span></label>
-                  <input v-model.number="form.value" class="input-field" type="number" :placeholder="form.type === 'PERCENTAGE' ? '10' : '5000'" min="0" required/>
+                  <input 
+                    v-model.number="form.value" 
+                    class="input-field" 
+                    :class="{ 'input-error': touched.value && fieldErrors.value }"
+                    type="number" 
+                    :placeholder="form.type === 'PERCENTAGE' ? '10' : '5000'" 
+                    min="0"
+                    @blur="touched.value = true"
+                    @input="fieldErrors.value = ''"
+                  />
+                  <span v-if="touched.value && fieldErrors.value" class="field-error">{{ fieldErrors.value }}</span>
                 </div>
               </div>
               <div class="form-group">
-                <label class="form-label">Target <span class="req">*</span></label>
-                <select v-model="form.target" class="input-field" required>
-                  <option v-for="t in store.DISCOUNT_TARGETS" :key="t.value" :value="t.value">{{ t.label }}</option>
+                <label class="form-label">Level <span class="req">*</span></label>
+                <select v-model="form.level" class="input-field" required>
+                  <option v-for="t in store.DISCOUNT_LEVELS" :key="t.value" :value="t.value">{{ t.label }}</option>
                 </select>
               </div>
 
               <!-- ── Product Picker (shown only when target = PRODUCT) ── -->
               <transition name="fade-slide">
-                <div v-if="form.target === 'PRODUCT'" class="product-picker-section">
+                <div v-if="form.level === 'product'" class="product-picker-section">
                   <label class="form-label">Produk Tertarget <span class="req">*</span></label>
                   <AppCombobox
                     :model-value="null"
@@ -123,11 +151,29 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Mulai <span class="req">*</span></label>
-                  <input v-model="form.startDate" class="input-field" type="date" required/>
+                  <input 
+                    v-model="form.startDate" 
+                    class="input-field" 
+                    :class="{ 'input-error': touched.startDate && fieldErrors.startDate }"
+                    type="date" 
+                    :min="today"
+                    @blur="touched.startDate = true"
+                    @input="fieldErrors.startDate = ''; fieldErrors.endDate = ''"
+                  />
+                  <span v-if="touched.startDate && fieldErrors.startDate" class="field-error">{{ fieldErrors.startDate }}</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Berakhir <span class="req">*</span></label>
-                  <input v-model="form.endDate" class="input-field" type="date" required/>
+                  <input 
+                    v-model="form.endDate" 
+                    class="input-field" 
+                    :class="{ 'input-error': touched.endDate && fieldErrors.endDate }"
+                    type="date" 
+                    :min="form.startDate || today"
+                    @blur="touched.endDate = true"
+                    @input="fieldErrors.endDate = ''"
+                  />
+                  <span v-if="touched.endDate && fieldErrors.endDate" class="field-error">{{ fieldErrors.endDate }}</span>
                 </div>
               </div>
               <div class="form-group">
@@ -143,7 +189,7 @@
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="store.loading">
+                <button type="submit" class="btn btn-primary" :disabled="store.loading || !isValid">
                   <span v-if="store.loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan' : 'Tambah' }}
                 </button>
@@ -174,9 +220,11 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import AppPagination from '@/components/AppPagination.vue'
 import { useDiscountsStore } from '@/stores/discounts'
 import { useProductsStore } from '@/stores/products'
 import AppCombobox from '@/components/AppCombobox.vue'
+import { validateAll, isFormValid, rules } from '@/utils/validators'
 
 const store = useDiscountsStore()
 const productsStore = useProductsStore()
@@ -188,10 +236,52 @@ const deleteTarget = ref(null)
 const formError   = ref('')
 const form = reactive({
   name: '', type: 'PERCENTAGE', value: 0,
-  target: 'TRANSACTION',
-  appliedProductIds: [],   // ← Langkah 2: field baru untuk per-produk
+  level: 'transaction',
+  appliedProductIds: [],
   startDate: '', endDate: '', isActive: true
 })
+const fieldErrors = reactive({ name: '', value: '', startDate: '', endDate: '' })
+const touched = reactive({ name: false, value: false, startDate: false, endDate: false })
+const today = new Date().toISOString().slice(0, 10)
+
+const validationRules = () => {
+  const valueRules = [
+    rules.required('Nilai diskon wajib diisi.'),
+    rules.minValue(1, form.type === 'PERCENTAGE'
+      ? 'Persentase diskon minimal 1%.'
+      : 'Nilai diskon harus lebih dari 0.'),
+  ]
+  if (form.type === 'PERCENTAGE') {
+    valueRules.push(rules.maxValue(100, 'Persentase diskon maksimal 100%.'))
+  }
+  return {
+    name: {
+      value: form.name.trim(),
+      rules: [
+        rules.required('Nama diskon wajib diisi.'),
+        rules.minLength(3, 'Nama diskon minimal 3 karakter.'),
+        rules.maxLength(100, 'Nama diskon maksimal 100 karakter.'),
+      ],
+    },
+    value: { value: form.value, rules: valueRules },
+    startDate: {
+      value: form.startDate,
+      rules: [
+        rules.required('Tanggal mulai wajib diisi.'),
+        ...(editTarget.value ? [] : [rules.dateNotBefore(today, 'Tanggal mulai tidak boleh kurang dari hari ini.')]),
+      ],
+    },
+    endDate: {
+      value: form.endDate,
+      rules: [
+        rules.required('Tanggal berakhir wajib diisi.'),
+        rules.dateAfter(() => form.startDate, 'Tanggal berakhir harus setelah tanggal mulai.'),
+      ],
+    },
+  }
+}
+
+const isValid = computed(() => isFormValid(validationRules()))
 
 onMounted(() => { store.fetchAll(); productsStore.fetchProducts() })
 
@@ -217,26 +307,39 @@ const openModal = (d = null) => {
     name:    d?.name    || '',
     type:    d?.type    || 'PERCENTAGE',
     value:   d?.value   || 0,
-    target:  d?.target  || 'TRANSACTION',
+    level:   d ? (d.isTransactionLevel ? 'transaction' : d.isMemberLevel ? 'member' : 'product') : 'transaction',
     appliedProductIds: d?.appliedProductIds ? [...d.appliedProductIds] : [],
     startDate: d?.startDate || '',
     endDate:   d?.endDate   || '',
     isActive:  d?.isActive  !== false,
   })
+  Object.assign(fieldErrors, { name: '', value: '', startDate: '', endDate: '' })
+  Object.assign(touched, { name: false, value: false, startDate: false, endDate: false })
   showModal.value = true
 }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
 
 const handleSubmit = async () => {
   formError.value = ''
-  if (form.type === 'PERCENTAGE' && (form.value < 0 || form.value > 100)) { formError.value = 'Persentase harus 0-100'; return }
-  if (form.startDate > form.endDate) { formError.value = 'Tanggal mulai harus sebelum tanggal berakhir'; return }
-  // Langkah 4 Validasi: Per Produk wajib punya minimal 1 produk
-  if (form.target === 'PRODUCT' && form.appliedProductIds.length === 0) {
-    formError.value = 'Target "Per Produk" wajib memilih minimal 1 produk'
+  // Mark all touched
+  Object.keys(touched).forEach(k => touched[k] = true)
+  // Per-field validation
+  const { valid, errors } = validateAll(validationRules())
+  Object.assign(fieldErrors, errors)
+  if (!valid) return
+  // Validasi: Per Produk wajib punya minimal 1 produk
+  if (form.level === 'product' && form.appliedProductIds.length === 0) {
+    formError.value = 'Level "Per Produk" wajib memilih minimal 1 produk'
     return
   }
-  const payload = { ...form, appliedProductIds: [...form.appliedProductIds], name: form.name.trim() }
+  const payload = {
+    ...form,
+    isTransactionLevel: form.level === 'transaction',
+    isMemberLevel: form.level === 'member',
+    appliedProductIds: [...form.appliedProductIds],
+    name: form.name.trim(),
+  }
+  delete payload.level
   const result  = editTarget.value ? await store.update(editTarget.value.id, payload) : await store.add(payload)
   if (result.success) closeModal()
   else formError.value = result.message

@@ -548,8 +548,8 @@ const applicableDiscounts = computed(() => {
   if (!activeOrder.value) return []
   const memberId = activeOrder.value.member?.id
   return discountsStore.activeDiscounts.filter(d => {
-    if (d.target === 'TRANSACTION') return true
-    if (d.target === 'MEMBER' && memberId && (!d.targetId || d.targetId === memberId)) return true
+    if (d.isTransactionLevel) return true
+    if (d.isMemberLevel && memberId) return true
     return false
   })
 })
@@ -560,7 +560,7 @@ const applyAutoDiscount = async (disc) => {
   let pct = 0
   if (disc.type === 'PERCENTAGE') {
     pct = disc.value
-  } else if (disc.type === 'NOMINAL') {
+  } else if (disc.type === 'FIXED_AMOUNT') {
     // Convert nominal to percentage based on current subtotal
     const sub = activeOrder.value.summary.subtotal
     if (sub <= 0) return

@@ -81,7 +81,7 @@ const routes = [
     path: '/cashier/device-select',
     name: 'PosDeviceSelector',
     component: PosDeviceSelector,
-    meta: { requiresAuth: true, roles: ['kasir'], title: 'Pilih Terminal — Nextore POS' },
+    meta: { requiresAuth: true, roles: ['kasir', 'supervisor'], title: 'Pilih Terminal — Nextore POS' },
   },
 
   // Opening Shift (kasir, after POS device select)

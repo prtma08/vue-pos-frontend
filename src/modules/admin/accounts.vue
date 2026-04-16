@@ -77,6 +77,14 @@
           </tr>
         </tbody>
       </table>
+      
+      <AppPagination 
+        :current-page="store.pagination.page"
+        :total-pages="store.pagination.totalPages"
+        :limit="store.pagination.limit"
+        :total-items="store.pagination.totalItems"
+        @page-change="(p) => store.fetchUsers({ page: p })"
+      />
     </div>
 
     <!-- ── Modal: Add/Edit ── -->
@@ -157,6 +165,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import AppPagination from '@/components/AppPagination.vue'
 import { useUsersStore } from '@/stores/users'
 
 const store = useUsersStore()

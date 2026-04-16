@@ -31,6 +31,7 @@
           :key="role"
           class="rs-card"
           :class="{ 'rs-card--selected': hoveredRole === role }"
+          :disabled="selectingRole"
           @mouseenter="hoveredRole = role"
           @mouseleave="hoveredRole = null"
           @click="handleSelectRole(role)"
@@ -48,6 +49,17 @@
             </svg>
           </div>
         </button>
+      </div>
+
+      <!-- Error -->
+      <div v-if="selectError" class="rs-error">
+        <span>⚠️ {{ selectError }}</span>
+      </div>
+
+      <!-- Loading overlay -->
+      <div v-if="selectingRole" class="rs-loading">
+        <div class="rs-spinner"></div>
+        <span>Memilih role...</span>
       </div>
 
       <!-- Logout -->
@@ -72,6 +84,8 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 const hoveredRole = ref(null)
+const selectingRole = ref(false)
+const selectError = ref('')
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 
 const toggleTheme = () => {
@@ -86,16 +100,28 @@ const userInitials = computed(() => {
 
 const getRoleMeta = (role) => authStore.getRoleMeta(role)
 
-const handleSelectRole = (role) => {
-  authStore.selectRole(role)
+const handleSelectRole = async (role) => {
+  selectingRole.value = true
+  selectError.value = ''
 
-  if (role === 'kasir') {
+  const result = await authStore.selectRole(role)
+
+  if (!result.success) {
+    selectError.value = result.message || 'Gagal memilih role'
+    selectingRole.value = false
+    return
+  }
+
+  selectingRole.value = false
+
+  // Stage 2 complete → redirect based on role
+  if (role === 'kasir' || role === 'supervisor') {
+    // Both kasir and supervisor need POS device selection (per Swagger)
     router.push('/cashier/device-select')
   } else {
     const redirects = {
       superuser: '/admin/dashboard',
       admin: '/admin/dashboard',
-      supervisor: '/admin/transactions',
     }
     router.push(redirects[role] || '/admin/dashboard')
   }
@@ -262,6 +288,36 @@ const handleLogout = async () => {
   border-color: var(--danger);
   background: var(--danger-soft);
 }
+
+/* ── Error ── */
+.rs-error {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  border-radius: 10px;
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-family: 'Inter', sans-serif;
+  text-align: center;
+}
+
+/* ── Loading ── */
+.rs-loading {
+  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+  margin-top: 1rem;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  font-family: 'Inter', sans-serif;
+}
+.rs-spinner {
+  width: 1.25rem; height: 1.25rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Animation ── */
 .animate-fadeIn {

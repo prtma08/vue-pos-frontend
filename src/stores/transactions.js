@@ -50,7 +50,7 @@ export const useTransactionsStore = defineStore('transactions', () => {
     const transactions = ref([])
     const loading = ref(false)
     const error = ref(null)
-    const pagination = ref({ page: 1, perPage: 20, total: 0 })
+    const pagination = ref({ page: 1, limit: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false })
 
     const searchTerm = ref('')
     const paymentFilter = ref('')
@@ -80,7 +80,7 @@ export const useTransactionsStore = defineStore('transactions', () => {
     const totalRevenue = computed(() => filtered.value.reduce((s, t) => s + t.total, 0))
 
     // ── fetchAll ───────────────────────────────────────────────────────────────
-    const fetchAll = async () => {
+    const fetchAll = async (params = {}) => {
         loading.value = true
         error.value = null
         if (USE_MOCK) {
@@ -93,15 +93,70 @@ export const useTransactionsStore = defineStore('transactions', () => {
         try {
             const { default: apiClient } = await import('@/api/client')
             const res = await apiClient.get('/transactions', {
-                params: { page: pagination.value.page, limit: pagination.value.perPage }
+                params: {
+                    page: params.page ?? pagination.value.page,
+                    limit: params.limit ?? pagination.value.limit,
+                    search: params.search || undefined,
+                }
             })
-            const raw = Array.isArray(res.data) ? res.data : (res.data.data ?? res.data.transactions ?? [])
-            transactions.value = raw
-            pagination.value.total = res.data.total ?? raw.length
+            transactions.value = res.data.data ?? []
+            if (res.data.meta) {
+                pagination.value = { ...pagination.value, ...res.data.meta }
+            }
             return { success: true }
         } catch (err) {
-            error.value = err.response?.data?.message || 'Gagal memuat riwayat transaksi'
-            return { success: false, message: error.value }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            error.value = errMsg
+            return { success: false, message: errMsg, errors: validationErrors }
+        } finally { loading.value = false }
+    }
+
+    // ── completeTransaction (PATCH /transactions/{id}) ────────────────────────
+    // Used for: Hold Order (PENDING→COMPLETED), update items, cancel
+    const completeTransaction = async (id, payload = {}) => {
+        loading.value = true
+        if (USE_MOCK) {
+            await new Promise(r => setTimeout(r, 300))
+            const idx = transactions.value.findIndex(t => t.id === id)
+            if (idx !== -1) transactions.value[idx] = { ...transactions.value[idx], ...payload }
+            loading.value = false
+            return { success: true }
+        }
+        try {
+            const { default: apiClient } = await import('@/api/client')
+            const res = await apiClient.patch(`/transactions/${id}`, payload)
+            const updated = res.data.data ?? res.data
+            const idx = transactions.value.findIndex(t => t.id === id)
+            if (idx !== -1) transactions.value[idx] = { ...transactions.value[idx], ...updated }
+            return { success: true, data: updated }
+        } catch (err) {
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
+        } finally { loading.value = false }
+    }
+
+    // ── deleteTransaction (DELETE /transactions/{id}) ─────────────────────────
+    const deleteTransaction = async (id) => {
+        loading.value = true
+        if (USE_MOCK) {
+            await new Promise(r => setTimeout(r, 200))
+            const idx = transactions.value.findIndex(t => t.id === id)
+            if (idx !== -1) transactions.value.splice(idx, 1)
+            loading.value = false
+            return { success: true }
+        }
+        try {
+            const { default: apiClient } = await import('@/api/client')
+            await apiClient.delete(`/transactions/${id}`)
+            const idx = transactions.value.findIndex(t => t.id === id)
+            if (idx !== -1) transactions.value.splice(idx, 1)
+            return { success: true }
+        } catch (err) {
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -120,5 +175,6 @@ export const useTransactionsStore = defineStore('transactions', () => {
         searchTerm, paymentFilter, dateFrom, dateTo,
         filtered, totalRevenue,
         fetchAll, getById, formatDate,
+        completeTransaction, deleteTransaction,
     }
 })

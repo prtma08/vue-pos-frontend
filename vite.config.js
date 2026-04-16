@@ -20,6 +20,18 @@ export default defineConfig({
     strictPort: false,
     // Proxy API requests to backend — eliminates CORS issues in development
     proxy: {
+      '/auth': {
+        target: BACKEND_URL,
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+      },
+      '/pos': {
+        target: BACKEND_URL,
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+      },
       '/api': {
         target: BACKEND_URL,
         changeOrigin: true,

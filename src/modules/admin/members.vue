@@ -61,6 +61,14 @@
           </tr>
         </tbody>
       </table>
+      
+      <AppPagination 
+        :current-page="store.pagination.page"
+        :total-pages="store.pagination.totalPages"
+        :limit="store.pagination.limit"
+        :total-items="store.pagination.totalItems"
+        @page-change="(p) => store.fetchMembers({ page: p })"
+      />
     </div>
 
     <!-- ── Modal: Add/Edit ── -->
@@ -75,11 +83,31 @@
             <form @submit.prevent="handleSubmit" class="modal-form">
               <div class="form-group">
                 <label class="form-label">Nama Lengkap <span class="required">*</span></label>
-                <input v-model="form.name" class="input-field" type="text" placeholder="contoh: Budi Darma" required/>
+                <input 
+                  v-model="form.name" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.name && fieldErrors.name }"
+                  type="text" 
+                  placeholder="contoh: Budi Darma" 
+                  maxlength="100"
+                  @blur="touched.name = true"
+                  @input="fieldErrors.name = ''"
+                />
+                <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">No. Telepon <span class="required">*</span></label>
-                <input v-model="form.phone" class="input-field" type="tel" placeholder="08xxxxxxxxxx" required/>
+                <input 
+                  v-model="form.phone" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.phone && fieldErrors.phone }"
+                  type="tel" 
+                  placeholder="08xxxxxxxxxx" 
+                  maxlength="15"
+                  @blur="touched.phone = true"
+                  @input="fieldErrors.phone = ''"
+                />
+                <span v-if="touched.phone && fieldErrors.phone" class="field-error">{{ fieldErrors.phone }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Status Member</label>
@@ -94,7 +122,7 @@
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="store.loading">
+                <button type="submit" class="btn btn-primary" :disabled="store.loading || !isValid">
                   <span v-if="store.loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan' : 'Tambah Member' }}
                 </button>
@@ -129,8 +157,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useMembersStore } from '@/stores/members'
+import AppPagination from '@/components/AppPagination.vue'
+import { validateAll, isFormValid, rules } from '@/utils/validators'
 
 const store = useMembersStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
@@ -141,6 +171,28 @@ const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
 const form = reactive({ name: '', phone: '', isActive: true })
+const fieldErrors = reactive({ name: '', phone: '' })
+const touched = reactive({ name: false, phone: false })
+
+const validationRules = () => ({
+  name: {
+    value: form.name.trim(),
+    rules: [
+      rules.required('Nama wajib diisi.'),
+      rules.minLength(3, 'Nama minimal 3 karakter.'),
+      rules.maxLength(100, 'Nama maksimal 100 karakter.'),
+    ],
+  },
+  phone: {
+    value: form.phone.trim(),
+    rules: [
+      rules.required('No. telepon wajib diisi.'),
+      rules.pattern(/^[0-9]{8,15}$/, 'Nomor telepon tidak valid, minimal 8 digit angka.'),
+    ],
+  },
+})
+
+const isValid = computed(() => isFormValid(validationRules()))
 
 onMounted(() => store.fetchMembers())
 
@@ -153,12 +205,22 @@ const openModal = (m = null) => {
   editTarget.value = m
   formError.value = ''
   Object.assign(form, { name: m?.name || '', phone: m?.phone || '', isActive: m?.isActive !== false })
+  Object.assign(fieldErrors, { name: '', phone: '' })
+  Object.assign(touched, { name: false, phone: false })
   showModal.value = true
 }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
 
 const handleSubmit = async () => {
   formError.value = ''
+  // Mark all touched
+  touched.name = true
+  touched.phone = true
+  // Validate
+  const { valid, errors } = validateAll(validationRules())
+  Object.assign(fieldErrors, errors)
+  if (!valid) return
+
   const payload = { name: form.name.trim(), phone: form.phone.trim(), isActive: form.isActive }
   const result = editTarget.value
     ? await store.update(editTarget.value.id, payload)

@@ -46,7 +46,7 @@
             </td>
             <td class="col-desc">{{ cat.description || '—' }}</td>
             <td>
-              <span v-if="cat.hasExpiration" class="expiry-badge yes">✅ Ya</span>
+              <span v-if="cat.hasExpiry" class="expiry-badge yes">✅ Ya</span>
               <span v-else class="expiry-na">tidak ada</span>
             </td>
             <td class="col-date">{{ formatDate(cat.createdAt) }}</td>
@@ -61,6 +61,14 @@
           </tr>
         </tbody>
       </table>
+      
+      <AppPagination 
+        :current-page="store.pagination.page"
+        :total-pages="store.pagination.totalPages"
+        :limit="store.pagination.limit"
+        :total-items="store.pagination.totalItems"
+        @page-change="(p) => store.fetchAll({ page: p })"
+      />
     </div>
 
     <!-- ── Modal: Add / Edit ── -->
@@ -75,7 +83,17 @@
             <form @submit.prevent="handleSubmit" class="modal-form">
               <div class="form-group">
                 <label class="form-label">Nama Kategori <span class="required">*</span></label>
-                <input v-model="form.name" class="input-field" type="text" placeholder="contoh: Makanan" required/>
+                <input 
+                  v-model="form.name" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.name && fieldErrors.name }"
+                  type="text" 
+                  placeholder="contoh: Makanan" 
+                  maxlength="100"
+                  @blur="touched.name = true"
+                  @input="fieldErrors.name = ''"
+                />
+                <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Deskripsi</label>
@@ -85,16 +103,16 @@
                 <label class="form-label">Kadaluarsa</label>
                 <div class="status-toggle-wrap">
                   <label class="toggle-label">
-                    <input type="checkbox" v-model="form.hasExpiration" class="toggle-input"/>
+                    <input type="checkbox" v-model="form.hasExpiry" class="toggle-input"/>
                     <span class="toggle-slider"></span>
-                    <span class="toggle-text">{{ form.hasExpiration ? 'Ya, memiliki kadaluarsa' : 'Tidak ada kadaluarsa' }}</span>
+                    <span class="toggle-text">{{ form.hasExpiry ? 'Ya, memiliki kadaluarsa' : 'Tidak ada kadaluarsa' }}</span>
                   </label>
                 </div>
               </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="store.loading">
+                <button type="submit" class="btn btn-primary" :disabled="store.loading || !isValid">
                   <span v-if="store.loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan Perubahan' : 'Tambah' }}
                 </button>
@@ -130,8 +148,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useCategoriesStore } from '@/stores/categories'
+import AppPagination from '@/components/AppPagination.vue'
+import { validateAll, isFormValid, rules } from '@/utils/validators'
 
 const store = useCategoriesStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
@@ -141,7 +161,22 @@ const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
-const form = reactive({ name: '', description: '', hasExpiration: false })
+const fieldErrors = reactive({ name: '' })
+const touched = reactive({ name: false })
+const form = reactive({ name: '', description: '', hasExpiry: false })
+
+const categoryRules = () => ({
+  name: {
+    value: form.name.trim(),
+    rules: [
+      rules.required('Nama kategori wajib diisi.'),
+      rules.minLength(3, 'Nama kategori minimal 3 karakter.'),
+      rules.maxLength(100, 'Nama kategori maksimal 100 karakter.'),
+    ],
+  },
+})
+
+const isValid = computed(() => isFormValid(categoryRules()))
 
 onMounted(() => store.fetchAll())
 
@@ -155,7 +190,9 @@ const openModal = (cat = null) => {
   formError.value = ''
   form.name = cat?.name || ''
   form.description = cat?.description || ''
-  form.hasExpiration = cat?.hasExpiration || false
+  form.hasExpiry = cat?.hasExpiry || false
+  Object.assign(fieldErrors, { name: '' })
+  touched.name = false
   showModal.value = true
 }
 
@@ -163,7 +200,15 @@ const closeModal = () => { showModal.value = false; editTarget.value = null }
 
 const handleSubmit = async () => {
   formError.value = ''
-  const payload = { name: form.name.trim(), description: form.description.trim(), hasExpiration: form.hasExpiration }
+  // Mark touched
+  touched.name = true
+
+  // ── Per-field validation ──
+  const { valid, errors } = validateAll(categoryRules())
+  Object.assign(fieldErrors, errors)
+  if (!valid) return
+
+  const payload = { name: form.name.trim(), description: form.description.trim(), hasExpiry: form.hasExpiry }
   const result = editTarget.value
     ? await store.update(editTarget.value.id, payload)
     : await store.add(payload)

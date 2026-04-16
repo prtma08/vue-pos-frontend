@@ -10,8 +10,9 @@ const MOCK_DISCOUNTS = [
         name: 'Diskon Member Gold',
         type: 'PERCENTAGE',
         value: 10,
-        target: 'MEMBER',
-        appliedProductIds: [],  // digunakan hanya saat target === 'PRODUCT'
+        isTransactionLevel: false,
+        isMemberLevel: true,
+        appliedProductIds: [],
         startDate: '2024-01-01',
         endDate: '2024-12-31',
         isActive: true,
@@ -22,7 +23,8 @@ const MOCK_DISCOUNTS = [
         name: 'Promo Akhir Tahun',
         type: 'PERCENTAGE',
         value: 15,
-        target: 'TRANSACTION',
+        isTransactionLevel: true,
+        isMemberLevel: false,
         appliedProductIds: [],
         startDate: '2024-12-01',
         endDate: '2024-12-31',
@@ -32,10 +34,10 @@ const MOCK_DISCOUNTS = [
     {
         id: 'disc-3',
         name: 'Diskon Produk Makanan',
-        type: 'NOMINAL',
+        type: 'FIXED_AMOUNT',
         value: 2000,
-        target: 'PRODUCT',
-        // Contoh: berlaku untuk Nasi Goreng Spesial & Mie Ayam Bakso
+        isTransactionLevel: false,
+        isMemberLevel: false,
         appliedProductIds: ['prod-1', 'prod-2'],
         startDate: '2026-01-01',
         endDate: '2026-12-31',
@@ -46,13 +48,13 @@ const MOCK_DISCOUNTS = [
 
 const DISCOUNT_TYPES = [
     { value: 'PERCENTAGE', label: 'Persentase (%)' },
-    { value: 'NOMINAL', label: 'Nominal (Rp)' },
+    { value: 'FIXED_AMOUNT', label: 'Nominal (Rp)' },
 ]
 
-const DISCOUNT_TARGETS = [
-    { value: 'PRODUCT', label: 'Per Produk' },
-    { value: 'MEMBER', label: 'Per Member' },
-    { value: 'TRANSACTION', label: 'Per Transaksi' },
+const DISCOUNT_LEVELS = [
+    { value: 'product', label: 'Per Produk' },
+    { value: 'member', label: 'Per Member' },
+    { value: 'transaction', label: 'Per Transaksi' },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,15 +63,20 @@ export const useDiscountsStore = defineStore('discounts', () => {
     const discounts = ref([])
     const loading = ref(false)
     const error = ref(null)
+    const pagination = ref({ page: 1, limit: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false })
     let nextMockId = 4
 
     const searchTerm = ref('')
-    const targetFilter = ref('')
+    const levelFilter = ref('') // '' | 'product' | 'member' | 'transaction'
 
     const filtered = computed(() => {
         let list = discounts.value
-        if (targetFilter.value) {
-            list = list.filter(d => d.target === targetFilter.value)
+        if (levelFilter.value === 'transaction') {
+            list = list.filter(d => d.isTransactionLevel)
+        } else if (levelFilter.value === 'member') {
+            list = list.filter(d => d.isMemberLevel)
+        } else if (levelFilter.value === 'product') {
+            list = list.filter(d => !d.isTransactionLevel && !d.isMemberLevel)
         }
         if (searchTerm.value) {
             const q = searchTerm.value.toLowerCase()
@@ -88,13 +95,14 @@ export const useDiscountsStore = defineStore('discounts', () => {
         return `Rp ${Math.round(disc.value).toLocaleString('id-ID')}`
     }
 
-    const getTargetLabel = (target) => {
-        const map = { PRODUCT: 'Per Produk', MEMBER: 'Per Member', TRANSACTION: 'Per Transaksi' }
-        return map[target] || target
+    const getLevelLabel = (disc) => {
+        if (disc.isTransactionLevel) return 'Per Transaksi'
+        if (disc.isMemberLevel) return 'Per Member'
+        return 'Per Produk'
     }
 
     // ── fetchAll ───────────────────────────────────────────────────────────────
-    const fetchAll = async () => {
+    const fetchAll = async (params = {}) => {
         loading.value = true
         error.value = null
         if (USE_MOCK) {
@@ -105,16 +113,30 @@ export const useDiscountsStore = defineStore('discounts', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.get('/discounts')
-            discounts.value = Array.isArray(res.data) ? res.data : (res.data.data ?? [])
+            const res = await apiClient.get('/discounts', {
+                params: {
+                    page: params.page ?? pagination.value.page,
+                    limit: params.limit ?? pagination.value.limit,
+                    search: params.search || undefined,
+                }
+            })
+            discounts.value = res.data.data ?? []
+            if (res.data.meta) {
+                pagination.value = { ...pagination.value, ...res.data.meta }
+            }
             return { success: true }
         } catch (err) {
-            error.value = err.response?.data?.message || 'Gagal memuat data diskon'
-            return { success: false, message: error.value }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            error.value = errMsg
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
     // ── add ────────────────────────────────────────────────────────────────────
+    // Swagger POST /discounts:
+    // Required: { name, value, endDate }
+    // Optional: { description, type, startDate, isActive, isTransactionLevel, productIds }
     const add = async (payload) => {
         loading.value = true
         if (USE_MOCK) {
@@ -132,15 +154,33 @@ export const useDiscountsStore = defineStore('discounts', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.post('/discounts', payload)
+            // Map frontend field names to Swagger field names
+            const body = {
+                name: payload.name,
+                description: payload.description || undefined,
+                type: payload.type,
+                value: payload.value,
+                startDate: payload.startDate || undefined,
+                endDate: payload.endDate,
+                isActive: payload.isActive ?? true,
+                isTransactionLevel: payload.isTransactionLevel ?? false,
+                // Map appliedProductIds → productIds (Swagger field name)
+                productIds: !payload.isTransactionLevel
+                    ? (payload.productIds || payload.appliedProductIds || [])
+                    : undefined,
+            }
+            const res = await apiClient.post('/discounts', body)
             discounts.value.push(res.data.data ?? res.data)
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menambah diskon' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
     // ── update ─────────────────────────────────────────────────────────────────
+    // Swagger PUT /discounts/{id}
     const update = async (id, payload) => {
         loading.value = true
         if (USE_MOCK) {
@@ -154,12 +194,28 @@ export const useDiscountsStore = defineStore('discounts', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.put(`/discounts/${id}`, payload)
+            // Map frontend field names to Swagger field names
+            const body = {
+                name: payload.name,
+                description: payload.description,
+                type: payload.type,
+                value: payload.value,
+                startDate: payload.startDate,
+                endDate: payload.endDate,
+                isActive: payload.isActive,
+                isTransactionLevel: payload.isTransactionLevel,
+                productIds: !payload.isTransactionLevel
+                    ? (payload.productIds || payload.appliedProductIds || [])
+                    : undefined,
+            }
+            const res = await apiClient.put(`/discounts/${id}`, body)
             const idx = discounts.value.findIndex(d => d.id === id)
             if (idx !== -1) discounts.value[idx] = { ...discounts.value[idx], ...(res.data.data ?? res.data) }
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal mengupdate diskon' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -182,7 +238,9 @@ export const useDiscountsStore = defineStore('discounts', () => {
             if (idx !== -1) discounts.value.splice(idx, 1)
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menghapus diskon' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -202,7 +260,7 @@ export const useDiscountsStore = defineStore('discounts', () => {
         const now = new Date().toISOString().split('T')[0]
         return discounts.value.filter(d =>
             d.isActive &&
-            d.target === 'PRODUCT' &&
+            !d.isTransactionLevel && !d.isMemberLevel &&
             d.startDate <= now &&
             d.endDate >= now &&
             Array.isArray(d.appliedProductIds) &&
@@ -211,10 +269,10 @@ export const useDiscountsStore = defineStore('discounts', () => {
     }
 
     return {
-        discounts, loading, error, searchTerm, targetFilter,
+        discounts, loading, error, pagination, searchTerm, levelFilter,
         filtered, activeDiscounts,
-        DISCOUNT_TYPES, DISCOUNT_TARGETS,
-        getDiscountLabel, getTargetLabel,
+        DISCOUNT_TYPES, DISCOUNT_LEVELS,
+        getDiscountLabel, getLevelLabel,
         fetchAll, add, update, remove, toggleActive,
         getActiveProductDiscounts,
     }

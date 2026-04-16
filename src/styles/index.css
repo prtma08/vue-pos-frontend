@@ -341,6 +341,33 @@ body {
   background: var(--bg-surface);
 }
 
+/* ── Validation Error States ─────────────────────────────────────────────── */
+.input-error {
+  border-color: var(--danger) !important;
+}
+
+.input-error:focus {
+  box-shadow: 0 0 0 3px var(--danger-soft) !important;
+}
+
+.field-error {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--danger);
+  font-family: 'Inter', sans-serif;
+  line-height: 1.4;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-family: 'Inter', sans-serif;
+}
+
 /* ── Navigation Card ──────────────────────────────────────────────────────── */
 .nav-card {
   display: flex;

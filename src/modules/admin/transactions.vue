@@ -85,6 +85,14 @@
           </tr>
         </tbody>
       </table>
+      
+      <AppPagination 
+        :current-page="store.pagination.page"
+        :total-pages="store.pagination.totalPages"
+        :limit="store.pagination.limit"
+        :total-items="store.pagination.totalItems"
+        @page-change="(p) => store.fetchTransactions({ page: p })"
+      />
     </div>
 
     <!-- ── Detail Modal ── -->
@@ -158,6 +166,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import AppPagination from '@/components/AppPagination.vue'
 import { useTransactionsStore } from '@/stores/transactions'
 
 const store = useTransactionsStore()

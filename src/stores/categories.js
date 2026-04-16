@@ -5,10 +5,10 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const MOCK_CATEGORIES = [
-    { id: 'cat-1', name: 'Makanan', description: 'Produk makanan & sajian utama', hasExpiration: true, createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'cat-2', name: 'Minuman', description: 'Berbagai pilihan minuman segar', hasExpiration: true, createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'cat-3', name: 'Snack', description: 'Camilan dan makanan ringan', hasExpiration: false, createdAt: '2024-01-02T00:00:00.000Z' },
-    { id: 'cat-4', name: 'Dessert', description: 'Pencuci mulut dan es krim', hasExpiration: true, createdAt: '2024-01-03T00:00:00.000Z' },
+    { id: 'cat-1', name: 'Makanan', description: 'Produk makanan & sajian utama', hasExpiry: true, createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'cat-2', name: 'Minuman', description: 'Berbagai pilihan minuman segar', hasExpiry: true, createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'cat-3', name: 'Snack', description: 'Camilan dan makanan ringan', hasExpiry: false, createdAt: '2024-01-02T00:00:00.000Z' },
+    { id: 'cat-4', name: 'Dessert', description: 'Pencuci mulut dan es krim', hasExpiry: true, createdAt: '2024-01-03T00:00:00.000Z' },
 ]
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,7 @@ export const useCategoriesStore = defineStore('categories', () => {
     const categories = ref([])
     const loading = ref(false)
     const error = ref(null)
+    const pagination = ref({ page: 1, limit: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false })
     let nextMockId = 5
 
     const searchTerm = ref('')
@@ -29,7 +30,7 @@ export const useCategoriesStore = defineStore('categories', () => {
     })
 
     // ── fetchAll ───────────────────────────────────────────────────────────────
-    const fetchAll = async () => {
+    const fetchAll = async (params = {}) => {
         loading.value = true
         error.value = null
         if (USE_MOCK) {
@@ -40,13 +41,23 @@ export const useCategoriesStore = defineStore('categories', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.get('/categories')
-            const raw = Array.isArray(res.data) ? res.data : (res.data.data ?? res.data.categories ?? [])
-            categories.value = raw
+            const res = await apiClient.get('/categories', {
+                params: {
+                    page: params.page ?? pagination.value.page,
+                    limit: params.limit ?? pagination.value.limit,
+                    search: params.search || undefined,
+                }
+            })
+            categories.value = res.data.data ?? []
+            if (res.data.meta) {
+                pagination.value = { ...pagination.value, ...res.data.meta }
+            }
             return { success: true }
         } catch (err) {
-            error.value = err.response?.data?.message || 'Gagal memuat kategori'
-            return { success: false, message: error.value }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            error.value = errMsg
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -68,7 +79,9 @@ export const useCategoriesStore = defineStore('categories', () => {
             categories.value.push(created)
             return { success: true, data: created }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menambah kategori' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -86,12 +99,14 @@ export const useCategoriesStore = defineStore('categories', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.put(`/categories/${id}`, payload)
+            const res = await apiClient.patch(`/categories/${id}`, payload)
             const idx = categories.value.findIndex(c => c.id === id)
             if (idx !== -1) categories.value[idx] = { ...categories.value[idx], ...(res.data.data ?? res.data) }
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal mengupdate kategori' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -114,9 +129,11 @@ export const useCategoriesStore = defineStore('categories', () => {
             if (idx !== -1) categories.value.splice(idx, 1)
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menghapus kategori' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
-    return { categories, loading, error, searchTerm, filtered, fetchAll, add, update, remove }
+    return { categories, loading, error, pagination, searchTerm, filtered, fetchAll, add, update, remove }
 })

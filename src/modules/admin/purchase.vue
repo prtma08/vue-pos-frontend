@@ -386,7 +386,7 @@ const singleProducts = computed(() =>
 const needsExpiry = computed(() => {
   if (!selectedProduct.value?.categoryId) return false
   const cat = categoriesStore.categories.find(c => c.id === selectedProduct.value.categoryId)
-  return cat?.hasExpiration === true
+  return cat?.hasExpiry === true
 })
 
 // ── HPP Preview ───────────────────────────────────────────────────────────────

@@ -8,10 +8,10 @@ import { useCategoriesStore } from './categories'
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const MOCK_CATEGORIES = [
-  { id: 'cat-1', name: 'Makanan', description: 'Produk makanan', hasExpiration: true },
-  { id: 'cat-2', name: 'Minuman', description: 'Produk minuman', hasExpiration: true },
-  { id: 'cat-3', name: 'Snack', description: 'Camilan ringan', hasExpiration: false },
-  { id: 'cat-4', name: 'Dessert', description: 'Pencuci mulut dan es krim', hasExpiration: true },
+  { id: 'cat-1', name: 'Makanan', description: 'Produk makanan', hasExpiry: true },
+  { id: 'cat-2', name: 'Minuman', description: 'Produk minuman', hasExpiry: true },
+  { id: 'cat-3', name: 'Snack', description: 'Camilan ringan', hasExpiry: false },
+  { id: 'cat-4', name: 'Dessert', description: 'Pencuci mulut dan es krim', hasExpiry: true },
 ]
 
 let MOCK_PRODUCTS = [
@@ -67,6 +67,7 @@ export const useProductsStore = defineStore('products', () => {
   const error = ref(null)
   const lowStockThreshold = ref(parseInt(import.meta.env.VITE_LOW_STOCK_THRESHOLD) || 10)
   const filters = ref({ category: null, searchTerm: '' })
+  const pagination = ref({ page: 1, limit: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false })
 
   // Computed
   const filteredProducts = computed(() => products.value.filter(product => {
@@ -87,7 +88,7 @@ export const useProductsStore = defineStore('products', () => {
   })
 
   // ── fetchProducts ──────────────────────────────────────────────────────────
-  const fetchProducts = async () => {
+  const fetchProducts = async (params = {}) => {
     loading.value = true
     error.value = null
     if (USE_MOCK) {
@@ -99,13 +100,25 @@ export const useProductsStore = defineStore('products', () => {
       return { success: true }
     }
     try {
-      const response = await apiClient.get('/products')
-      const raw = Array.isArray(response.data) ? response.data : (response.data.data ?? response.data.products ?? [])
+      const response = await apiClient.get('/products', {
+        params: {
+          page: params.page ?? pagination.value.page,
+          limit: params.limit ?? pagination.value.limit,
+          search: params.search || undefined,
+          categoryId: params.categoryId || undefined,
+        }
+      })
+      const raw = response.data.data ?? []
       products.value = raw.map(normalizeProduct)
+      if (response.data.meta) {
+        pagination.value = { ...pagination.value, ...response.data.meta }
+      }
       return { success: true }
     } catch (err) {
-      error.value = err.response?.data?.message || 'Gagal memuat produk'
-      return { success: false, message: error.value }
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      error.value = errMsg
+      return { success: false, message: errMsg, errors: validationErrors }
     } finally { loading.value = false }
   }
 
@@ -114,40 +127,58 @@ export const useProductsStore = defineStore('products', () => {
     if (USE_MOCK) { categories.value = MOCK_CATEGORIES; return { success: true } }
     try {
       const response = await apiClient.get('/categories')
-      const raw = Array.isArray(response.data) ? response.data : (response.data.data ?? response.data.categories ?? [])
-      categories.value = raw
+      categories.value = response.data.data ?? []
       return { success: true }
     } catch (err) {
-      return { success: false, message: err.response?.data?.message || 'Gagal memuat kategori' }
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      return { success: false, message: errMsg, errors: validationErrors }
     }
   }
 
   // ── addProduct  ────────────────────────────────────────────────────────────
   const addProduct = async (payload) => {
     loading.value = true
-    // E4 FIX: Inisialisasi HPP awal = harga beli jika stok > 0 dan hpp belum diset
-    // Jika produk baru langsung punya stok dan buyPrice, HPP = buyPrice (bukan 0)
-    const body = { ...payload, price: payload.price ?? payload.sellingPrice }
-    if (!('hpp' in body) || body.hpp === 0 || body.hpp === undefined || body.hpp === null) {
-      // Jika ada buyPrice, gunakan sebagai initial HPP; jika tidak, gunakan harga jual sebagai fallback sementara
-      body.hpp = body.buyPrice || body.initialBuyPrice || 0
-    }
+    // Backend POST /products → multipart/form-data
+    // Allowed fields: name, sku, price, lowStockThreshold, categoryId, images
+    // HPP & stock diinisialisasi 0 oleh backend, diupdate via POST /stock-batches
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 350))
-      const cat = MOCK_CATEGORIES.find(c => c.id === body.categoryId)
-      const newProd = { ...body, id: `prod-${nextMockId++}`, category: cat ?? null, type: body.type || 'SINGLE', images: [] }
+      const cat = MOCK_CATEGORIES.find(c => c.id === payload.categoryId)
+      const newProd = {
+        name: payload.name, sku: payload.sku,
+        price: payload.price ?? payload.sellingPrice,
+        lowStockThreshold: payload.lowStockThreshold,
+        categoryId: payload.categoryId,
+        id: `prod-${nextMockId++}`, category: cat ?? null,
+        type: payload.type || 'SINGLE', images: [], hpp: 0, stock: 0,
+      }
       MOCK_PRODUCTS.push(newProd)
       products.value.push(normalizeProduct(newProd))
       loading.value = false
       return { success: true, data: newProd }
     }
     try {
-      const res = await apiClient.post('/products', body)
+      const fd = new FormData()
+      fd.append('name', payload.name)
+      fd.append('sku', payload.sku)
+      fd.append('price', String(payload.price ?? payload.sellingPrice))
+      fd.append('lowStockThreshold', String(payload.lowStockThreshold ?? 0))
+      if (payload.categoryId) fd.append('categoryId', payload.categoryId)
+      // Append image files (File objects from <input type="file">)
+      if (Array.isArray(payload.images)) {
+        payload.images.forEach(file => fd.append('images', file))
+      }
+      const res = await apiClient.post('/products', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
       const created = res.data.data ?? res.data
       products.value.push(normalizeProduct(created))
       return { success: true, data: created }
     } catch (err) {
-      return { success: false, message: err.response?.data?.message || 'Gagal menambah produk' }
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      return { success: false, message: errMsg, errors: validationErrors }
     } finally { loading.value = false }
   }
 
@@ -156,26 +187,27 @@ export const useProductsStore = defineStore('products', () => {
     loading.value = true
     error.value = null
 
-    // E3 FIX: Block direct HPP overwrite — HPP must only change via purchaseStock() weighted-average formula.
-    // Direct HPP edits from the edit form bypass the weighted average and corrupt cost accuracy.
+    // Strip fields the backend controls — HPP, stock, totalStock, hppAverage
+    // HPP must only change via POST /stock-batches (weighted-average)
     let hppWarning = false
     const safeUpdates = { ...updates }
-    if ('hpp' in safeUpdates) {
-      hppWarning = true
-      delete safeUpdates.hpp
-      if (import.meta.env.DEV) {
-        console.warn('[Products] updateProduct: HPP field stripped — gunakan purchaseStock() untuk mengubah HPP via weighted average.')
+    for (const forbidden of ['hpp', 'hppAverage', 'stock', 'totalStock', 'initialQuantity']) {
+      if (forbidden in safeUpdates) {
+        if (forbidden === 'hpp') hppWarning = true
+        delete safeUpdates[forbidden]
       }
     }
+    if (hppWarning && import.meta.env.DEV) {
+      console.warn('[Products] updateProduct: HPP field stripped — gunakan POST /stock-batches untuk mengubah HPP via weighted average.')
+    }
 
-    const body = { ...safeUpdates, price: safeUpdates.price ?? safeUpdates.sellingPrice }
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 300))
       const idx = products.value.findIndex(p => p.id === productId)
       const mockIdx = MOCK_PRODUCTS.findIndex(p => p.id === productId)
       if (idx !== -1) {
-        const cat = MOCK_CATEGORIES.find(c => c.id === body.categoryId)
-        const merged = { ...products.value[idx], ...body, category: cat ?? products.value[idx].category }
+        const cat = MOCK_CATEGORIES.find(c => c.id === safeUpdates.categoryId)
+        const merged = { ...products.value[idx], ...safeUpdates, price: safeUpdates.price ?? safeUpdates.sellingPrice, category: cat ?? products.value[idx].category }
         products.value[idx] = normalizeProduct(merged)
         if (mockIdx !== -1) MOCK_PRODUCTS[mockIdx] = merged
       }
@@ -183,13 +215,29 @@ export const useProductsStore = defineStore('products', () => {
       return { success: true, hppWarning }
     }
     try {
-      const response = await apiClient.put(`/products/${productId}`, body)
+      // Backend PUT /products/{id} → multipart/form-data
+      const fd = new FormData()
+      if (safeUpdates.name) fd.append('name', safeUpdates.name)
+      if (safeUpdates.sku) fd.append('sku', safeUpdates.sku)
+      const price = safeUpdates.price ?? safeUpdates.sellingPrice
+      if (price != null) fd.append('price', String(price))
+      if (safeUpdates.lowStockThreshold != null) fd.append('lowStockThreshold', String(safeUpdates.lowStockThreshold))
+      if (safeUpdates.categoryId) fd.append('categoryId', safeUpdates.categoryId)
+      if (Array.isArray(safeUpdates.images)) {
+        safeUpdates.images.forEach(file => fd.append('images', file))
+      }
+      const response = await apiClient.put(`/products/${productId}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      const updated = response.data.data ?? response.data
       const idx = products.value.findIndex(p => p.id === productId)
-      if (idx !== -1) products.value[idx] = normalizeProduct({ ...products.value[idx], ...response.data })
+      if (idx !== -1) products.value[idx] = normalizeProduct({ ...products.value[idx], ...updated })
       return { success: true, hppWarning }
     } catch (err) {
-      error.value = err.response?.data?.message || 'Gagal mengupdate produk'
-      return { success: false, message: error.value }
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      error.value = errMsg
+      return { success: false, message: errMsg, errors: validationErrors }
     } finally { loading.value = false }
   }
 
@@ -211,7 +259,9 @@ export const useProductsStore = defineStore('products', () => {
       if (idx !== -1) products.value.splice(idx, 1)
       return { success: true }
     } catch (err) {
-      return { success: false, message: err.response?.data?.message || 'Gagal menghapus produk' }
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      return { success: false, message: errMsg, errors: validationErrors }
     } finally { loading.value = false }
   }
 
@@ -226,11 +276,11 @@ export const useProductsStore = defineStore('products', () => {
       return { success: false, message: 'Jumlah dan harga beli harus lebih dari 0' }
     }
 
-    // Validate: expiryDate mandatory for hasExpiration categories
+    // Validate: expiryDate mandatory for hasExpiry categories
     const categoriesStore = useCategoriesStore()
     const category = categoriesStore.categories.find(c => c.id === product.categoryId)
 
-    if (category?.hasExpiration && !expiryDate) {
+    if (category?.hasExpiry && !expiryDate) {
       return { success: false, message: `Tanggal kadaluarsa wajib diisi untuk kategori ${category?.name || ''}` }
     }
 
@@ -284,24 +334,40 @@ export const useProductsStore = defineStore('products', () => {
       return { success: true, data: purchaseRecord }
     }
 
-    // ── REAL API ──
+    // ── REAL API — Swagger: POST /stock-batches ──
     try {
-      const res = await apiClient.post(`/products/${productId}/purchase`, {
-        qty: newQty,
-        buyPrice,
-        expiryDate,
+      // Auto-generate batchNumber: BATCH-YYYYMMDD-{seq}
+      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '')
+      const batchNumber = `BATCH-${dateStr}-${nextPurchaseId++}`
+
+      const res = await apiClient.post('/stock-batches', {
+        productId,
+        batchNumber,
+        initialQuantity: newQty,
+        purchasePrice: buyPrice,
+        expiryDate: expiryDate || undefined,
       })
-      const data = res.data.data ?? res.data
+      const stockBatch = res.data.data ?? res.data
 
-      // Update local state
-      product.hpp = data.newHpp ?? newHpp
-      product.stock = data.newStock ?? totalStock
+      // Update local product state from batch response
+      product.stock = (product.stock || 0) + newQty
+      const totalCostCalc = ((product.stock - newQty) * (product.hpp || 0)) + (newQty * buyPrice)
+      product.hpp = Math.round(totalCostCalc / product.stock)
       product.isLowStock = product.stock <= (product.lowStockThreshold ?? lowStockThreshold.value)
-      purchaseRecords.value.push(data.purchaseRecord ?? purchaseRecord)
 
-      return { success: true, data: data.purchaseRecord ?? purchaseRecord }
+      const record = {
+        ...purchaseRecord,
+        id: stockBatch.id || purchaseRecord.id,
+        newHpp: product.hpp,
+        newStock: product.stock,
+      }
+      purchaseRecords.value.push(record)
+
+      return { success: true, data: record }
     } catch (err) {
-      return { success: false, message: err.response?.data?.message || 'Gagal memproses pembelian stok' }
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      return { success: false, message: errMsg, errors: validationErrors }
     }
   }
 
@@ -387,7 +453,9 @@ export const useProductsStore = defineStore('products', () => {
 
       return { success: true, data: newRecord, ...lossWarning }
     } catch (err) {
-      return { success: false, message: err.response?.data?.message || 'Gagal mengupdate harga jual' }
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      return { success: false, message: errMsg, errors: validationErrors }
     }
   }
 
@@ -482,7 +550,7 @@ export const useProductsStore = defineStore('products', () => {
 
   return {
     // State
-    products, categories, productPrices, purchaseRecords, loading, error, lowStockThreshold, filters,
+    products, categories, productPrices, purchaseRecords, loading, error, lowStockThreshold, filters, pagination,
 
     // Computed
     filteredProducts, lowStockProducts,

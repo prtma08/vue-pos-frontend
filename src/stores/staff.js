@@ -175,16 +175,14 @@ export const useStaffStore = defineStore('staff', () => {
                 apiClient.get('/users'),
                 apiClient.get('/transactions'),
             ])
-            staff.value = Array.isArray(usersRes.data)
-                ? usersRes.data
-                : (usersRes.data.data ?? usersRes.data.users ?? [])
-            transactions.value = Array.isArray(txRes.data)
-                ? txRes.data
-                : (txRes.data.data ?? txRes.data.transactions ?? [])
+            staff.value = usersRes.data.data ?? []
+            transactions.value = txRes.data.data ?? []
             return { success: true }
         } catch (err) {
-            error.value = err.response?.data?.message || 'Gagal memuat data karyawan'
-            return { success: false, message: error.value }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            error.value = errMsg
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally {
             loading.value = false
         }

@@ -40,11 +40,15 @@
               type="text"
               placeholder="Masukkan username"
               class="input-field input-with-icon"
-              required
+              :class="{ 'input-error': touched.username && fieldErrors.username }"
               autocomplete="username"
               :disabled="loading"
+              @blur="touched.username = true"
+              @input="fieldErrors.username = ''"
+              maxlength="20"
             />
           </div>
+          <span v-if="touched.username && fieldErrors.username" class="field-error">{{ fieldErrors.username }}</span>
         </div>
 
         <div class="form-group">
@@ -61,9 +65,11 @@
               :type="showPassword ? 'text' : 'password'"
               placeholder="••••••••"
               class="input-field input-with-icon"
-              required
+              :class="{ 'input-error': touched.password && fieldErrors.password }"
               autocomplete="current-password"
               :disabled="loading"
+              @blur="touched.password = true"
+              @input="fieldErrors.password = ''"
             />
             <button type="button" class="input-icon input-icon-right" @click="showPassword = !showPassword" tabindex="-1">
               <svg v-if="!showPassword" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -75,6 +81,7 @@
               </svg>
             </button>
           </div>
+          <span v-if="touched.password && fieldErrors.password" class="field-error">{{ fieldErrors.password }}</span>
         </div>
 
         <!-- Error -->
@@ -87,7 +94,7 @@
           </div>
         </transition>
 
-        <button type="submit" class="btn btn-primary btn-lg login-btn" :disabled="loading">
+        <button type="submit" class="btn btn-primary btn-lg login-btn" :disabled="loading || !isValid">
           <span v-if="loading" class="spinner"></span>
           <span>{{ loading ? 'Masuk...' : 'Masuk' }}</span>
         </button>
@@ -103,9 +110,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import { validateAll, isFormValid, rules } from '@/utils/validators'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -116,6 +124,27 @@ const loading      = ref(false)
 const error        = ref('')
 const showPassword = ref(false)
 const isMock       = import.meta.env.VITE_USE_MOCK === 'true'
+const fieldErrors  = reactive({ username: '', password: '' })
+const touched      = reactive({ username: false, password: false })
+
+const loginRules = () => ({
+  username: {
+    value: username.value,
+    rules: [
+      rules.required('Username wajib diisi.'),
+      rules.pattern(/^[a-zA-Z0-9_]{1,20}$/, 'Username hanya boleh berisi huruf, angka, underscore, dan maksimal 20 karakter.'),
+    ],
+  },
+  password: {
+    value: password.value,
+    rules: [
+      rules.required('Password wajib diisi.'),
+      rules.minLength(8, 'Password minimal 8 karakter.'),
+    ],
+  },
+})
+
+const isValid = computed(() => isFormValid(loginRules()))
 
 // Theme — persist in localStorage
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
@@ -125,21 +154,27 @@ const toggleTheme = () => {
 }
 
 const handleLogin = async () => {
+  error.value = ''
+  // Mark all touched
+  touched.username = true
+  touched.password = true
+
+  // ── Pre-validation ──
+  const { valid, errors } = validateAll(loginRules())
+  Object.assign(fieldErrors, errors)
+  if (!valid) return
+
   loading.value = true
-  error.value   = ''
 
   try {
     const result = await authStore.login(username.value, password.value)
 
     if (result.success) {
-      // Multi-role users → role selector
-      if (authStore.needsRoleSelection) {
+      if (result.requiresRoleSelection) {
         router.push('/role-select')
         return
       }
-
-      // Single-role users → direct redirect
-      if (authStore.activeRole === 'kasir') {
+      if (authStore.needsPosDevice) {
         router.push('/cashier/device-select')
       } else {
         const roleRedirects = { superuser: '/admin/dashboard', admin: '/admin', supervisor: '/admin/transactions', kasir: '/cashier' }
@@ -332,4 +367,20 @@ const handleLogin = async () => {
 /* ── Transitions ── */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-6px); }
+
+/* ── Field-level error ── */
+.field-error {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--danger, #dc2626);
+  font-family: 'Inter', sans-serif;
+  line-height: 1.4;
+}
+.input-error {
+  border-color: var(--danger, #dc2626) !important;
+}
+.input-error:focus {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
 </style>

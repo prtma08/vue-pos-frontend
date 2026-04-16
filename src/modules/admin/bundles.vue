@@ -96,7 +96,17 @@
               <!-- ► Nama Paket -->
               <div class="form-group">
                 <label class="form-label">Nama Paket <span class="req">*</span></label>
-                <input v-model="form.name" class="input-field" type="text" placeholder="contoh: Paket Hemat Makan Siang" required/>
+                <input 
+                  v-model="form.name" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.name && fieldErrors.name }"
+                  type="text" 
+                  placeholder="contoh: Paket Hemat Makan Siang" 
+                  maxlength="100"
+                  @blur="touched.name = true"
+                  @input="fieldErrors.name = ''"
+                />
+                <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
               </div>
 
               <!-- ► Upload Gambar -->
@@ -178,7 +188,16 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Harga Jual Paket <span class="req">*</span></label>
-                  <input v-model.number="form.bundlePrice" class="input-field" type="number" min="0" required/>
+                  <input 
+                    v-model.number="form.bundlePrice" 
+                    class="input-field" 
+                    :class="{ 'input-error': touched.bundlePrice && fieldErrors.bundlePrice }"
+                    type="number" 
+                    min="1"
+                    @blur="touched.bundlePrice = true"
+                    @input="fieldErrors.bundlePrice = ''"
+                  />
+                  <span v-if="touched.bundlePrice && fieldErrors.bundlePrice" class="field-error">{{ fieldErrors.bundlePrice }}</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Stok Paket <span class="req">*</span></label>
@@ -223,7 +242,7 @@
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="loading">
+                <button type="submit" class="btn btn-primary" :disabled="loading || !isValid">
                   <span v-if="loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan' : 'Buat Paket' }}
                 </button>
@@ -257,8 +276,10 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import AppPagination from '@/components/AppPagination.vue'
 import { useProductsStore } from '@/stores/products'
 import AppCombobox from '@/components/AppCombobox.vue'
+import { validateAll, isFormValid, rules } from '@/utils/validators'
 
 const productsStore = useProductsStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
@@ -309,6 +330,28 @@ const form = reactive({
   imageFile: null,
   imagePreview: null,
 })
+const fieldErrors = reactive({ name: '', bundlePrice: '' })
+const touched = reactive({ name: false, bundlePrice: false })
+
+const validationRules = () => ({
+  name: {
+    value: form.name.trim(),
+    rules: [
+      rules.required('Nama paket wajib diisi.'),
+      rules.minLength(3, 'Nama paket minimal 3 karakter.'),
+      rules.maxLength(100, 'Nama paket maksimal 100 karakter.'),
+    ],
+  },
+  bundlePrice: {
+    value: form.bundlePrice,
+    rules: [
+      rules.required('Harga jual paket wajib diisi.'),
+      rules.minValue(1, 'Harga paket harus lebih dari 0.'),
+    ],
+  },
+})
+
+const isValid = computed(() => isFormValid(validationRules()))
 
 // ── Computed: auto-calculated HPP & pricing ──────────────────────────────────
 /**
@@ -399,6 +442,8 @@ const removeImage = () => {
 const openModal = (b = null) => {
   editTarget.value = b
   formError.value  = ''
+  Object.assign(fieldErrors, { name: '', bundlePrice: '' })
+  Object.assign(touched, { name: false, bundlePrice: false })
   if (b) {
     form.name         = b.name
     form.bundlePrice  = b.bundlePrice
@@ -421,9 +466,15 @@ const closeModal = () => { showModal.value = false; editTarget.value = null }
 // ── Submit ────────────────────────────────────────────────────────────────────
 const handleSubmit = () => {
   formError.value = ''
+  // Mark all touched
+  Object.keys(touched).forEach(k => touched[k] = true)
+  // Per-field validation
+  const { valid, errors } = validateAll(validationRules())
+  Object.assign(fieldErrors, errors)
+  if (!valid) return
+
   const validItems = form.items.filter(c => c.productId && c.qty > 0)
   if (validItems.length < 2) { formError.value = 'Paket harus berisi minimal 2 produk'; return }
-  if (form.bundlePrice <= 0) { formError.value = 'Harga paket harus lebih dari 0'; return }
   if (form.bundleStock < 0)  { formError.value = 'Stok paket tidak boleh negatif'; return }
 
   // Snapshot setiap komponen dengan nama, harga, dan HPP saat ini

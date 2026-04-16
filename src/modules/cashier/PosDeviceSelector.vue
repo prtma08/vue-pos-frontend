@@ -61,13 +61,19 @@
         </button>
       </div>
 
+      <!-- Error -->
+      <div v-if="confirmError" class="ds-error">
+        <span>⚠️ {{ confirmError }}</span>
+      </div>
+
       <!-- Actions -->
       <div class="ds-actions">
-        <button class="btn btn-primary btn-lg ds-btn-confirm" :disabled="!selectedDevice" @click="handleConfirm">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <button class="btn btn-primary btn-lg ds-btn-confirm" :disabled="!selectedDevice || confirming" @click="handleConfirm">
+          <span v-if="confirming" class="ds-spinner-sm"></span>
+          <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"/>
           </svg>
-          <span>Mulai Sesi Kasir</span>
+          <span>{{ confirming ? 'Memproses...' : 'Mulai Sesi Kasir' }}</span>
         </button>
         <button class="ds-btn-back" @click="handleBack">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -91,6 +97,8 @@ const router = useRouter()
 
 const selectedDevice = ref(null)
 const loading = ref(true)
+const confirming = ref(false)
+const confirmError = ref('')
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 
 const toggleTheme = () => {
@@ -103,9 +111,21 @@ onMounted(async () => {
   loading.value = false
 })
 
-const handleConfirm = () => {
+const handleConfirm = async () => {
   if (!selectedDevice.value) return
-  authStore.selectPosDevice(selectedDevice.value)
+  confirming.value = true
+  confirmError.value = ''
+
+  const result = await authStore.selectPosDevice(selectedDevice.value)
+
+  if (!result.success) {
+    confirmError.value = result.message || 'Gagal memilih POS terminal'
+    confirming.value = false
+    return
+  }
+
+  confirming.value = false
+  // Stage 3 complete → proceed to cashier (router guard handles shift check)
   router.push('/cashier')
 }
 
@@ -276,6 +296,26 @@ const handleBack = () => {
   transition: color 0.2s;
 }
 .ds-btn-back:hover { color: var(--accent); }
+
+/* ── Error ── */
+.ds-error {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  border-radius: 10px;
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-family: 'Inter', sans-serif;
+  text-align: center;
+}
+.ds-spinner-sm {
+  width: 1rem; height: 1rem;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
 
 /* ── Animation ── */
 .animate-fadeIn { animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both; }

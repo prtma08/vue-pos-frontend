@@ -35,7 +35,7 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
     const availableDevices = computed(() => devices.value.filter(d => d.isActive && !d.currentCashier))
 
     // ── fetchAll ───────────────────────────────────────────────────────────────
-    const fetchAll = async () => {
+    const fetchAll = async (params = {}) => {
         loading.value = true
         error.value = null
         if (USE_MOCK) {
@@ -46,12 +46,20 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.get('/pos-devices')
-            devices.value = Array.isArray(res.data) ? res.data : (res.data.data ?? [])
+            const res = await apiClient.get('/pos-devices', {
+                params: {
+                    page: params.page ?? pagination.value?.page,
+                    limit: params.limit ?? pagination.value?.limit,
+                    search: params.search || undefined,
+                }
+            })
+            devices.value = res.data.data ?? []
             return { success: true }
         } catch (err) {
-            error.value = err.response?.data?.message || 'Gagal memuat data POS'
-            return { success: false, message: error.value }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            error.value = errMsg
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -72,7 +80,9 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
             devices.value.push(res.data.data ?? res.data)
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menambah POS' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -95,7 +105,9 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
             if (idx !== -1) devices.value[idx] = { ...devices.value[idx], ...(res.data.data ?? res.data) }
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal mengupdate POS' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -118,7 +130,9 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
             if (idx !== -1) devices.value.splice(idx, 1)
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menghapus POS' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 

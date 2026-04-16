@@ -23,6 +23,7 @@ export const useMembersStore = defineStore('members', () => {
     const discounts = ref([])
     const loading = ref(false)
     const error = ref(null)
+    const pagination = ref({ page: 1, limit: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false })
     let nextMockId = 5
 
     const searchTerm = ref('')
@@ -35,7 +36,7 @@ export const useMembersStore = defineStore('members', () => {
         )
     })
 
-    const fetchMembers = async () => {
+    const fetchMembers = async (params = {}) => {
         loading.value = true
         if (USE_MOCK) {
             await new Promise(r => setTimeout(r, 300))
@@ -45,13 +46,23 @@ export const useMembersStore = defineStore('members', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const response = await apiClient.get('/members')
-            const raw = Array.isArray(response.data) ? response.data : (response.data.data ?? response.data.members ?? [])
-            members.value = raw
+            const response = await apiClient.get('/members', {
+                params: {
+                    page: params.page ?? pagination.value.page,
+                    limit: params.limit ?? pagination.value.limit,
+                    search: params.search || undefined,
+                }
+            })
+            members.value = response.data.data ?? []
+            if (response.data.meta) {
+                pagination.value = { ...pagination.value, ...response.data.meta }
+            }
             return { success: true }
         } catch (err) {
-            error.value = err.response?.data?.message || 'Gagal memuat member'
-            return { success: false, message: error.value }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            error.value = errMsg
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -60,11 +71,12 @@ export const useMembersStore = defineStore('members', () => {
         try {
             const { default: apiClient } = await import('@/api/client')
             const response = await apiClient.get('/discounts')
-            const raw = Array.isArray(response.data) ? response.data : (response.data.data ?? response.data.discounts ?? [])
-            discounts.value = raw
+            discounts.value = response.data.data ?? []
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal memuat diskon' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         }
     }
 
@@ -85,7 +97,9 @@ export const useMembersStore = defineStore('members', () => {
             members.value.push(created)
             return { success: true, data: created }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menambah member' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -107,7 +121,9 @@ export const useMembersStore = defineStore('members', () => {
             if (idx !== -1) members.value[idx] = { ...members.value[idx], ...(res.data.data ?? res.data) }
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal mengupdate member' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -129,7 +145,9 @@ export const useMembersStore = defineStore('members', () => {
             if (idx !== -1) members.value.splice(idx, 1)
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menghapus member' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -140,5 +158,5 @@ export const useMembersStore = defineStore('members', () => {
         return members.value.filter(m => m.name.toLowerCase().includes(q) || m.phone.includes(q))
     }
 
-    return { members, discounts, loading, error, searchTerm, filtered, fetchMembers, fetchDiscounts, add, update, remove, getMemberById, searchMembers }
+    return { members, discounts, loading, error, pagination, searchTerm, filtered, fetchMembers, fetchDiscounts, add, update, remove, getMemberById, searchMembers }
 })

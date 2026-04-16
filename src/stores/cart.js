@@ -549,22 +549,23 @@ export const useCartStore = defineStore('cart', () => {
       // Send only IDs and qty — backend recalculates prices server-side
       const response = await apiClient.post('/transactions', {
         paymentMethod: order.paymentMethod || 'CASH',
-        status: 'COMPLETED',
+        status: order.status || 'COMPLETED',
         memberId: order.member?.id || undefined,
+        customerName: order.customerName || undefined,
         items: order.items.map(item => ({
           productId: item.productId,
-          qty: item.quantity,  // Backend uses 'qty' not 'quantity'
-          isBundle: item.isBundle || false,
-          bundleItems: item.bundleItems || undefined,
+          qty: item.quantity,
         })),
       })
+
+      const txData = response.data.data ?? response.data
 
       // Deduct stock locally after successful API response
       deductOrderStock(order)
 
       order.status = 'submitted'
       order.metadata.submittedAt = new Date().toISOString()
-      order.metadata.transactionId = response.data?.id || response.data?.data?.id
+      order.metadata.transactionId = txData?.id
       persistToStorage()
 
       // B7 FIX: Record transaction in active shift so totalSales is accurate
@@ -572,7 +573,9 @@ export const useCartStore = defineStore('cart', () => {
 
       return { success: true, transactionId: order.metadata.transactionId }
     } catch (err) {
-      return { success: false, message: err.response?.data?.message || 'Gagal submit transaksi' }
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      return { success: false, message: errMsg, errors: validationErrors }
     }
   }
 

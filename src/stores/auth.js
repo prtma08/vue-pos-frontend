@@ -1,9 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import axios from 'axios'
+import apiClient from '@/api/client'
 
-// Base URL: empty string = use Vite dev proxy (same origin), avoids CORS
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
@@ -48,6 +46,12 @@ const normalizeRole = (role) => {
   return map[role?.toUpperCase()] || role?.toLowerCase() || null
 }
 
+// ─── Denormalize app role back to backend uppercase ──────────────────────────
+const denormalizeRole = (role) => {
+  const map = { superuser: 'SUPERUSER', admin: 'ADMIN', supervisor: 'SUPERVISOR', kasir: 'CASHIER' }
+  return map[role] || role?.toUpperCase() || null
+}
+
 // Role display labels & icons
 const ROLE_META = {
   superuser: { label: 'Superuser', icon: '🛡️', description: 'Akses penuh ke seluruh sistem' },
@@ -71,7 +75,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   // ── Computed ────────────────────────────────────────────────────────────────
   const needsRoleSelection = computed(() => roles.value.length > 1 && !activeRole.value)
-  const needsPosDevice = computed(() => activeRole.value === 'kasir' && !posDevice.value)
+  const needsPosDevice = computed(() => (activeRole.value === 'kasir' || activeRole.value === 'supervisor') && !posDevice.value)
+
+  // Auth flow stage tracking: LOGIN → ROLE_SELECT → POS_SELECT → READY
+  const authStage = computed(() => {
+    if (!isAuthenticated.value) return 'LOGIN'
+    if (!activeRole.value) return 'ROLE_SELECT'
+    if (needsPosDevice.value) return 'POS_SELECT'
+    return 'READY'
+  })
 
   const isSuperuser = computed(() => activeRole.value === 'superuser')
   const isAdmin = computed(() => activeRole.value === 'admin')
@@ -124,51 +136,84 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = false
       return { success: true, message: 'Login berhasil (Mock Mode)' }
     }
-    // ── REAL API ───────────────────────────────────────────────────────────
+    // ── REAL API — Swagger: POST /auth/login ─────────────────────────────
 
     try {
-      const response = await axios.post(
-        `${BASE_URL}/api/auth/sign-in/username`,
-        { username, password },
-        { withCredentials: true }
-      )
+      const response = await apiClient.post('/auth/login', { username, password })
+      const resData = response.data // { success, message, data }
 
-      const { user: userData } = response.data
-
-      user.value = userData
-      const normalizedRoles = (userData.roles || [userData.role]).map(normalizeRole).filter(Boolean)
-      roles.value = normalizedRoles
-      isAuthenticated.value = true
-
-      if (normalizedRoles.length === 1) {
-        activeRole.value = normalizedRoles[0]
-        localStorage.setItem(ACTIVE_ROLE_KEY, normalizedRoles[0])
+      if (!resData.success) {
+        error.value = resData.message || 'Login gagal.'
+        return { success: false, message: error.value }
       }
 
-      return { success: true, message: 'Login successful' }
+      isAuthenticated.value = true
+
+      const { requiresRoleSelection, availableRoles } = resData.data || {}
+
+      if (requiresRoleSelection && availableRoles?.length) {
+        // Multi-role user: store available roles, wait for role selection
+        const normalizedRoles = availableRoles.map(normalizeRole).filter(Boolean)
+        roles.value = normalizedRoles
+        // Fetch session to get user profile — but DON'T restore activeRole (user must choose)
+        await _fetchSession({ skipRoleRestore: true })
+        return { success: true, requiresRoleSelection: true, message: 'Pilih role aktif' }
+      }
+
+      // Single-role or auto-assigned: fetch full session
+      await _fetchSession()
+      return { success: true, message: 'Login berhasil' }
     } catch (err) {
-      error.value = err.response?.data?.message || 'Login gagal. Periksa username dan password.'
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      error.value = errMsg
       isAuthenticated.value = false
-      return { success: false, message: error.value }
+      return { success: false, message: errMsg, errors: validationErrors }
     } finally {
       loading.value = false
     }
   }
 
-  const selectRole = (role) => {
+  const selectRole = async (role) => {
     if (!roles.value.includes(role)) {
       return { success: false, message: 'Role tidak tersedia untuk user ini' }
     }
-    activeRole.value = role
-    localStorage.setItem(ACTIVE_ROLE_KEY, role)
 
-    // Clear POS device when switching to non-kasir role
-    if (role !== 'kasir') {
-      posDevice.value = null
-      localStorage.removeItem(POS_DEVICE_KEY)
+    // ── MOCK MODE ──────────────────────────────────────────────────────────
+    if (USE_MOCK) {
+      activeRole.value = role
+      localStorage.setItem(ACTIVE_ROLE_KEY, role)
+      if (role !== 'kasir') {
+        posDevice.value = null
+        localStorage.removeItem(POS_DEVICE_KEY)
+      }
+      return { success: true }
     }
 
-    return { success: true }
+    // ── REAL API — Swagger: POST /auth/select-role ─────────────────────── 
+    try {
+      const backendRole = denormalizeRole(role)
+      const response = await apiClient.post('/auth/select-role', { role: backendRole })
+
+      if (!response.data.success) {
+        return { success: false, message: response.data.message || 'Gagal memilih role' }
+      }
+
+      activeRole.value = role
+      localStorage.setItem(ACTIVE_ROLE_KEY, role)
+
+      // Clear POS device when switching to non-kasir role
+      if (role !== 'kasir') {
+        posDevice.value = null
+        localStorage.removeItem(POS_DEVICE_KEY)
+      }
+
+      return { success: true }
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      return { success: false, message: errMsg, errors: validationErrors }
+    }
   }
 
   const switchRole = () => {
@@ -186,21 +231,42 @@ export const useAuthStore = defineStore('auth', () => {
       posDevices.value = MOCK_POS_DEVICES
       return { success: true, data: MOCK_POS_DEVICES }
     }
+    // ── REAL API — Swagger: GET /pos ────────────────────────────────────
     try {
-      const { default: apiClient } = await import('@/api/client')
-      const res = await apiClient.get('/pos-devices')
-      const data = Array.isArray(res.data) ? res.data : (res.data.data ?? [])
+      const res = await apiClient.get('/pos')
+      const data = res.data?.data ?? []
       posDevices.value = data
       return { success: true, data }
     } catch (err) {
-      return { success: false, message: err.response?.data?.message || 'Gagal memuat POS devices' }
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      return { success: false, message: errMsg, errors: validationErrors }
     }
   }
 
-  const selectPosDevice = (device) => {
-    posDevice.value = device
-    localStorage.setItem(POS_DEVICE_KEY, JSON.stringify(device))
-    return { success: true }
+  const selectPosDevice = async (device) => {
+    // ── MOCK MODE ──────────────────────────────────────────────────────────
+    if (USE_MOCK) {
+      posDevice.value = device
+      localStorage.setItem(POS_DEVICE_KEY, JSON.stringify(device))
+      return { success: true }
+    }
+    // ── REAL API — Swagger: POST /auth/select-pos ──────────────────────── 
+    try {
+      const response = await apiClient.post('/auth/select-pos', { posId: device.id })
+
+      if (!response.data.success) {
+        return { success: false, message: response.data.message || 'Gagal memilih POS' }
+      }
+
+      posDevice.value = device
+      localStorage.setItem(POS_DEVICE_KEY, JSON.stringify(device))
+      return { success: true }
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      return { success: false, message: errMsg, errors: validationErrors }
+    }
   }
 
   const clearPosDevice = () => {
@@ -220,12 +286,9 @@ export const useAuthStore = defineStore('auth', () => {
       return { success: true }
     }
 
+    // ── REAL API — Swagger: POST /api/auth/sign-out ─────────────────────
     try {
-      await axios.post(
-        `${BASE_URL}/api/auth/sign-out`,
-        {},
-        { withCredentials: true }
-      )
+      await apiClient.post('/api/auth/sign-out')
     } catch {
       // Even if logout API fails, clear local state
     } finally {
@@ -274,47 +337,64 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = false
       return { success: false }
     }
-    // ── REAL API ───────────────────────────────────────────────────────────
-
+    // ── REAL API — Swagger: GET /api/auth/get-session ──────────────────── 
     try {
-      const response = await axios.get(`${BASE_URL}/api/auth/get-session`, {
-        withCredentials: true,
-        timeout: 5000,
-      })
-
-      const { user: userData, session } = response.data
-
-      if (!session || !userData) {
-        clearAuth()
-        return { success: false }
-      }
-
-      user.value = userData
-      const normalizedRoles = (userData.roles || [userData.role]).map(normalizeRole).filter(Boolean)
-      roles.value = normalizedRoles
-      isAuthenticated.value = true
-
-      // Restore active role
-      const savedRole = localStorage.getItem(ACTIVE_ROLE_KEY)
-      if (savedRole && normalizedRoles.includes(savedRole)) {
-        activeRole.value = savedRole
-      } else if (normalizedRoles.length === 1) {
-        activeRole.value = normalizedRoles[0]
-      }
-
-      // Restore POS device
-      const savedDevice = localStorage.getItem(POS_DEVICE_KEY)
-      if (savedDevice) {
-        try { posDevice.value = JSON.parse(savedDevice) } catch { /* ignore */ }
-      }
-
-      return { success: true }
+      return await _fetchSession()
     } catch {
       clearAuth()
       return { success: false }
     } finally {
       loading.value = false
     }
+  }
+
+  // ── Internal helper: fetch & hydrate session from backend ──────────────
+  // skipRoleRestore: true = don't auto-set activeRole (used after login when multi-role)
+  const _fetchSession = async ({ skipRoleRestore = false } = {}) => {
+    const response = await apiClient.get('/api/auth/get-session', { timeout: 5000 })
+
+    // Swagger BaseResponse wrapper: { success, data: { user, session } }
+    const payload = response.data?.data ?? response.data
+    const { user: userData, session } = payload
+
+    if (!session || !userData) {
+      clearAuth()
+      return { success: false }
+    }
+
+    user.value = userData
+    const normalizedRoles = (userData.roles || [userData.role]).map(normalizeRole).filter(Boolean)
+    roles.value = normalizedRoles
+    isAuthenticated.value = true
+
+    if (!skipRoleRestore) {
+      // If session has an activeRole from backend, use it
+      if (session.activeRole) {
+        const normalized = normalizeRole(session.activeRole)
+        if (normalized && normalizedRoles.includes(normalized)) {
+          activeRole.value = normalized
+          localStorage.setItem(ACTIVE_ROLE_KEY, normalized)
+        }
+      }
+
+      // Restore active role from localStorage as fallback
+      if (!activeRole.value) {
+        const savedRole = localStorage.getItem(ACTIVE_ROLE_KEY)
+        if (savedRole && normalizedRoles.includes(savedRole)) {
+          activeRole.value = savedRole
+        } else if (normalizedRoles.length === 1) {
+          activeRole.value = normalizedRoles[0]
+        }
+      }
+
+      // Restore POS device from localStorage
+      const savedDevice = localStorage.getItem(POS_DEVICE_KEY)
+      if (savedDevice) {
+        try { posDevice.value = JSON.parse(savedDevice) } catch { /* ignore */ }
+      }
+    }
+
+    return { success: true }
   }
 
   const clearAuth = () => {
@@ -342,6 +422,7 @@ export const useAuthStore = defineStore('auth', () => {
     error,
 
     // Computed
+    authStage,
     needsRoleSelection,
     needsPosDevice,
     isSuperuser,

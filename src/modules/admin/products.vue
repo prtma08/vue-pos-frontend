@@ -149,6 +149,14 @@
           </tr>
         </tbody>
       </table>
+      
+      <AppPagination 
+        :current-page="store.pagination.page"
+        :total-pages="store.pagination.totalPages"
+        :limit="store.pagination.limit"
+        :total-items="store.pagination.totalItems"
+        @page-change="(p) => store.fetchProducts({ page: p })"
+      />
     </div>
     <!-- ── Modal: Add / Edit ─────────────────────────────────────────────── -->
     <Teleport to="body">
@@ -176,20 +184,29 @@
                   <input 
                     v-model="form.name" 
                     class="input-field" 
+                    :class="{ 'input-error': touched.name && fieldErrors.name }"
                     type="text" 
                     placeholder="Contoh: Nasi Goreng Spesial" 
-                    required 
+                    maxlength="100"
+                    @blur="touched.name = true"
+                    @input="fieldErrors.name = ''"
                   />
+                  <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">SKU</label>
+                  <label class="form-label">SKU <span class="required">*</span></label>
                   <input 
                     v-model="form.sku" 
                     class="input-field" 
+                    :class="{ 'input-error': touched.sku && fieldErrors.sku }"
                     type="text" 
-                    placeholder="MKN-001" 
+                    placeholder="MKN-001"
+                    maxlength="100"
+                    @blur="touched.sku = true"
+                    @input="fieldErrors.sku = ''"
                   />
-                  <span class="field-hint">Kode unik untuk identifikasi</span>
+                  <span v-if="touched.sku && fieldErrors.sku" class="field-error">{{ fieldErrors.sku }}</span>
+                  <span v-else class="field-hint">Kode unik, tanpa spasi</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">
@@ -216,22 +233,27 @@
                     <input 
                       v-model.number="form.price" 
                       class="input-field" 
+                      :class="{ 'input-error': touched.price && fieldErrors.price }"
                       type="number" 
-                      min="0" 
-                      placeholder="25000" 
-                      required 
+                      min="1" 
+                      placeholder="25000"
+                      @blur="touched.price = true"
+                      @input="fieldErrors.price = ''"
                     />
                   </div>
+                  <span v-if="touched.price && fieldErrors.price" class="field-error">{{ fieldErrors.price }}</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Upload Gambar</label>
                   <input 
                     type="file" 
-                    accept="image/*" 
+                    accept=".jpg,.jpeg,.png,.webp" 
                     class="input-field input-file" 
                     @change="onImageChange"
                   />
-                  <span class="field-hint" v-if="form.imagePreview">Gambar dipilih ✓</span>
+                  <span v-if="fieldErrors.imageFile" class="field-error">{{ fieldErrors.imageFile }}</span>
+                  <span v-else-if="form.imagePreview" class="field-hint">Gambar dipilih ✓</span>
+                  <span v-else class="field-hint">JPG, PNG, atau WebP. Maks. 2MB</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">
@@ -252,11 +274,15 @@
                   <input 
                     v-model.number="form.lowStockThreshold" 
                     class="input-field" 
+                    :class="{ 'input-error': touched.lowStockThreshold && fieldErrors.lowStockThreshold }"
                     type="number" 
                     min="0" 
                     placeholder="10" 
+                    @blur="touched.lowStockThreshold = true"
+                    @input="fieldErrors.lowStockThreshold = ''"
                   />
-                  <span class="field-hint">Notifikasi saat stok ≤ nilai ini</span>
+                  <span v-if="touched.lowStockThreshold && fieldErrors.lowStockThreshold" class="field-error">{{ fieldErrors.lowStockThreshold }}</span>
+                  <span v-else class="field-hint">Notifikasi saat stok ≤ nilai ini</span>
                 </div>
               </div>
               
@@ -271,7 +297,7 @@
               
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="store.loading">
+                <button type="submit" class="btn btn-primary" :disabled="store.loading || !isValid">
                   <span v-if="store.loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan Perubahan' : 'Tambah Produk' }}
                 </button>
@@ -366,6 +392,8 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useProductsStore } from '@/stores/products'
 import { usePricelistStore } from '@/stores/pricelist'
 import AppCombobox from '@/components/AppCombobox.vue'
+import AppPagination from '@/components/AppPagination.vue'
+import { validateAll, validate, isFormValid, rules } from '@/utils/validators'
 
 const store = useProductsStore()
 const pricelistStore = usePricelistStore()
@@ -382,6 +410,43 @@ const priceHistoryTarget = ref(null)
 const priceHistoryList = ref([])
 
 const form = reactive({ name: '', sku: '', categoryId: '', price: null, stock: null, lowStockThreshold: 10, imageFile: null, imagePreview: false })
+const fieldErrors = reactive({ name: '', sku: '', price: '', imageFile: '', lowStockThreshold: '' })
+const touched = reactive({ name: false, sku: false, price: false, lowStockThreshold: false })
+
+const productValidationRules = () => ({
+  name: {
+    value: form.name.trim(),
+    rules: [
+      rules.required('Nama produk wajib diisi.'),
+      rules.minLength(3, 'Nama produk minimal 3 karakter.'),
+      rules.maxLength(100, 'Nama produk maksimal 100 karakter.'),
+    ],
+  },
+  sku: {
+    value: form.sku.trim(),
+    rules: [
+      rules.required('SKU wajib diisi.'),
+      rules.minLength(3, 'SKU minimal 3 karakter.'),
+      rules.maxLength(100, 'SKU maksimal 100 karakter.'),
+      rules.pattern(/^\S+$/, 'SKU tidak boleh mengandung spasi.'),
+    ],
+  },
+  price: {
+    value: form.price,
+    rules: [
+      rules.required('Harga jual wajib diisi.'),
+      rules.minValue(1, 'Harga jual harus lebih dari 0.'),
+    ],
+  },
+  lowStockThreshold: {
+    value: form.lowStockThreshold,
+    rules: [
+      rules.minValue(0, 'Batas stok rendah minimal 0.'),
+    ],
+  },
+})
+
+const isValid = computed(() => isFormValid(productValidationRules()))
 
 onMounted(async () => {
   await Promise.all([
@@ -393,9 +458,19 @@ onMounted(async () => {
 
 const fmt = (n) => (n ?? 0).toLocaleString('id-ID')
 
+const ALLOWED_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp']
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024 // 2MB
+
 const onImageChange = (e) => {
   const file = e.target.files?.[0]
+  fieldErrors.imageFile = ''
   if (file) {
+    // Validate type
+    const typeErr = validate(file, [rules.fileType(ALLOWED_IMAGE_EXTS, 'Format gambar tidak didukung. Gunakan JPG, PNG, atau WebP.')])
+    if (typeErr) { fieldErrors.imageFile = typeErr; form.imageFile = null; form.imagePreview = false; return }
+    // Validate size
+    const sizeErr = validate(file, [rules.fileSize(MAX_IMAGE_SIZE, 'Ukuran gambar maks. 2MB.')])
+    if (sizeErr) { fieldErrors.imageFile = sizeErr; form.imageFile = null; form.imagePreview = false; return }
     form.imageFile = file
     form.imagePreview = true
   }
@@ -420,6 +495,8 @@ const openModal = (product = null) => {
   } else {
     Object.assign(form, { name: '', sku: '', categoryId: '', price: null, stock: null, lowStockThreshold: 10, imageFile: null, imagePreview: false })
   }
+  Object.assign(fieldErrors, { name: '', sku: '', price: '', imageFile: '', lowStockThreshold: '' })
+  Object.assign(touched, { name: false, sku: false, price: false, lowStockThreshold: false })
   showModal.value = true
 }
 
@@ -427,6 +504,14 @@ const closeModal = () => { showModal.value = false; editTarget.value = null }
 
 const handleSubmit = async () => {
   formError.value = ''
+  // Mark all touched
+  Object.keys(touched).forEach(k => touched[k] = true)
+
+  // ── Per-field validation ──
+  const { valid, errors } = validateAll(productValidationRules())
+  Object.assign(fieldErrors, errors)
+  if (!valid) return
+
   const payload = {
     name: form.name.trim(), sku: form.sku.trim(), categoryId: form.categoryId,
     price: form.price, stock: form.stock ?? 0,

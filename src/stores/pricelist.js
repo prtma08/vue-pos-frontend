@@ -99,8 +99,10 @@ export const usePricelistStore = defineStore('pricelist', () => {
             pricelistItems.value = pliRes.data?.data ?? pliRes.data ?? []
             return { success: true }
         } catch (err) {
-            error.value = err.response?.data?.message || 'Gagal memuat pricelist'
-            return { success: false, message: error.value }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            error.value = errMsg
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -122,7 +124,9 @@ export const usePricelistStore = defineStore('pricelist', () => {
             pricelists.value.forEach(pl => { pl.is_active = pl.id === id })
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal mengaktifkan pricelist' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -144,7 +148,9 @@ export const usePricelistStore = defineStore('pricelist', () => {
             pricelists.value.forEach(pl => { pl.is_active = false })
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menonaktifkan pricelists' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -173,7 +179,9 @@ export const usePricelistStore = defineStore('pricelist', () => {
             pricelists.value.push(created)
             return { success: true, data: created }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menambah pricelist' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -195,7 +203,9 @@ export const usePricelistStore = defineStore('pricelist', () => {
             if (idx !== -1) pricelists.value[idx] = { ...pricelists.value[idx], ...payload }
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal mengupdate pricelist' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -221,7 +231,9 @@ export const usePricelistStore = defineStore('pricelist', () => {
             pricelistItems.value = pricelistItems.value.filter(i => i.pricelistId !== id)
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menghapus pricelist' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -263,7 +275,9 @@ export const usePricelistStore = defineStore('pricelist', () => {
             pricelistItems.value.push(created)
             return { success: true, data: created }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menambah item' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -288,7 +302,9 @@ export const usePricelistStore = defineStore('pricelist', () => {
             if (idx !== -1) pricelistItems.value[idx].eventPrice = eventPrice
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal mengupdate harga event' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
@@ -310,7 +326,9 @@ export const usePricelistStore = defineStore('pricelist', () => {
             if (idx !== -1) pricelistItems.value.splice(idx, 1)
             return { success: true }
         } catch (err) {
-            return { success: false, message: err.response?.data?.message || 'Gagal menghapus item' }
+            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            const validationErrors = err.response?.data?.errors || null
+            return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
     }
 
