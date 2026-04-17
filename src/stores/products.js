@@ -83,8 +83,10 @@ export const useProductsStore = defineStore('products', () => {
   // Normalize API → internal (backend sends `price` for selling price)
   const normalizeProduct = (p) => ({
     ...p,
+    stock: p.totalStock ?? p.stock ?? 0,
+    hpp: p.hppAverage ?? p.hpp ?? 0,
     sellingPrice: p.price ?? p.sellingPrice,
-    isLowStock: p.stock <= (p.lowStockThreshold ?? lowStockThreshold.value),
+    isLowStock: (p.totalStock ?? p.stock ?? 0) <= (p.lowStockThreshold ?? lowStockThreshold.value),
   })
 
   // ── fetchProducts ──────────────────────────────────────────────────────────
@@ -166,9 +168,8 @@ export const useProductsStore = defineStore('products', () => {
       fd.append('lowStockThreshold', String(payload.lowStockThreshold ?? 0))
       if (payload.categoryId) fd.append('categoryId', payload.categoryId)
       // Append image files (File objects from <input type="file">)
-      if (Array.isArray(payload.images)) {
-        payload.images.forEach(file => fd.append('images', file))
-      }
+      const imageFiles = payload.images || (payload.imageFile ? [payload.imageFile] : [])
+      imageFiles.forEach(file => fd.append('images', file))
       const res = await apiClient.post('/products', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
@@ -223,9 +224,8 @@ export const useProductsStore = defineStore('products', () => {
       if (price != null) fd.append('price', String(price))
       if (safeUpdates.lowStockThreshold != null) fd.append('lowStockThreshold', String(safeUpdates.lowStockThreshold))
       if (safeUpdates.categoryId) fd.append('categoryId', safeUpdates.categoryId)
-      if (Array.isArray(safeUpdates.images)) {
-        safeUpdates.images.forEach(file => fd.append('images', file))
-      }
+      const imageFiles = safeUpdates.images || (safeUpdates.imageFile ? [safeUpdates.imageFile] : [])
+      imageFiles.forEach(file => fd.append('images', file))
       const response = await apiClient.put(`/products/${productId}`, fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })

@@ -23,6 +23,14 @@ export const rules = {
     pattern: (regex, msg = 'Format tidak valid.') =>
         (v) => (v && !regex.test(v)) ? msg : '',
 
+    /** Nama hanya boleh huruf, angka, spasi, dan tanda baca dasar (.,'-) */
+    noSpecialChars: (msg = 'Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.') =>
+        (v) => (v && !/^[a-zA-Z0-9\s.,'\-]+$/.test(v)) ? msg : '',
+
+    /** Cegah input hanya berisi spasi kosong */
+    noWhitespaceOnly: (msg = 'Input tidak boleh hanya berisi spasi.') =>
+        (v) => (typeof v === 'string' && v.length > 0 && v.trim().length === 0) ? msg : '',
+
     /** Nilai numerik minimal */
     minValue: (n, msg) =>
         (v) => (v != null && v !== '' && Number(v) < n) ? (msg || `Nilai minimal ${n}.`) : '',

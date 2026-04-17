@@ -176,16 +176,19 @@ const touched = reactive({ name: false, phone: false })
 
 const validationRules = () => ({
   name: {
-    value: form.name.trim(),
+    value: form.name,
     rules: [
+      rules.noWhitespaceOnly('Input tidak boleh hanya berisi spasi.'),
       rules.required('Nama wajib diisi.'),
       rules.minLength(3, 'Nama minimal 3 karakter.'),
       rules.maxLength(100, 'Nama maksimal 100 karakter.'),
+      rules.noSpecialChars('Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
     ],
   },
   phone: {
-    value: form.phone.trim(),
+    value: form.phone,
     rules: [
+      rules.noWhitespaceOnly('Input tidak boleh hanya berisi spasi.'),
       rules.required('No. telepon wajib diisi.'),
       rules.pattern(/^[0-9]{8,15}$/, 'Nomor telepon tidak valid, minimal 8 digit angka.'),
     ],
@@ -221,7 +224,7 @@ const handleSubmit = async () => {
   Object.assign(fieldErrors, errors)
   if (!valid) return
 
-  const payload = { name: form.name.trim(), phone: form.phone.trim(), isActive: form.isActive }
+  const payload = { name: form.name.trim(), phone: form.phone.trim() }
   const result = editTarget.value
     ? await store.update(editTarget.value.id, payload)
     : await store.add(payload)

@@ -96,11 +96,12 @@
           <tr v-for="product in store.filteredProducts" :key="product.id" class="table-row">
             <td>
               <div class="cell-product">
-                <div class="product-avatar" :style="{ background: getProductColor(product.name) }">
-                  <span class="product-emoji">{{ productEmoji(product) }}</span>
+                <div class="product-avatar" :style="(!product.images || product.images.length === 0) ? { background: getProductColor(product.name) } : { background: 'transparent' }">
+                  <img v-if="product.images && product.images.length > 0" :src="product.images[0]" class="product-img" alt="Product Image"/>
+                  <span v-else class="product-emoji">{{ productEmoji(product) }}</span>
                 </div>
                 <div class="product-details">
-                  <span class="product-name">{{ product.name }}</span>
+                  <span class="product-name" :title="product.name">{{ truncateName(product.name) }}</span>
                   <span class="product-id">ID: #{{ product.id.toString().slice(-4) }}</span>
                 </div>
               </div>
@@ -246,14 +247,15 @@
                 <div class="form-group">
                   <label class="form-label">Upload Gambar</label>
                   <input 
+                    ref="imageInput"
                     type="file" 
-                    accept=".jpg,.jpeg,.png,.webp" 
+                    accept=".jpg,.jpeg,.png" 
                     class="input-field input-file" 
                     @change="onImageChange"
                   />
                   <span v-if="fieldErrors.imageFile" class="field-error">{{ fieldErrors.imageFile }}</span>
                   <span v-else-if="form.imagePreview" class="field-hint">Gambar dipilih ✓</span>
-                  <span v-else class="field-hint">JPG, PNG, atau WebP. Maks. 2MB</span>
+                  <span v-else class="field-hint">JPG atau PNG. Maks. 2MB</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">
@@ -263,11 +265,14 @@
                   <input 
                     v-model.number="form.stock" 
                     class="input-field" 
+                    :class="{ 'input-error': touched.stock && fieldErrors.stock }"
                     type="number" 
                     min="0" 
-                    placeholder="50" 
-                    required 
+                    placeholder="50"
+                    @blur="touched.stock = true"
+                    @input="fieldErrors.stock = ''"
                   />
+                  <span v-if="touched.stock && fieldErrors.stock" class="field-error">{{ fieldErrors.stock }}</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Batas Stok Rendah</label>
@@ -410,13 +415,15 @@ const priceHistoryTarget = ref(null)
 const priceHistoryList = ref([])
 
 const form = reactive({ name: '', sku: '', categoryId: '', price: null, stock: null, lowStockThreshold: 10, imageFile: null, imagePreview: false })
-const fieldErrors = reactive({ name: '', sku: '', price: '', imageFile: '', lowStockThreshold: '' })
-const touched = reactive({ name: false, sku: false, price: false, lowStockThreshold: false })
+const fieldErrors = reactive({ name: '', sku: '', price: '', stock: '', imageFile: '', lowStockThreshold: '' })
+const touched = reactive({ name: false, sku: false, price: false, stock: false, lowStockThreshold: false })
+const imageInput = ref(null)
 
 const productValidationRules = () => ({
   name: {
-    value: form.name.trim(),
+    value: form.name,
     rules: [
+      rules.noWhitespaceOnly('Input tidak boleh hanya berisi spasi.'),
       rules.required('Nama produk wajib diisi.'),
       rules.minLength(3, 'Nama produk minimal 3 karakter.'),
       rules.maxLength(100, 'Nama produk maksimal 100 karakter.'),
@@ -436,6 +443,13 @@ const productValidationRules = () => ({
     rules: [
       rules.required('Harga jual wajib diisi.'),
       rules.minValue(1, 'Harga jual harus lebih dari 0.'),
+    ],
+  },
+  stock: {
+    value: form.stock,
+    rules: [
+      rules.required('Stok wajib diisi.'),
+      rules.minValue(0, 'Stok tidak boleh bernilai negatif.'),
     ],
   },
   lowStockThreshold: {
@@ -458,19 +472,18 @@ onMounted(async () => {
 
 const fmt = (n) => (n ?? 0).toLocaleString('id-ID')
 
-const ALLOWED_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp']
+const ALLOWED_IMAGE_EXTS = ['jpg', 'jpeg', 'png']
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024 // 2MB
 
 const onImageChange = (e) => {
   const file = e.target.files?.[0]
   fieldErrors.imageFile = ''
   if (file) {
-    // Validate type
-    const typeErr = validate(file, [rules.fileType(ALLOWED_IMAGE_EXTS, 'Format gambar tidak didukung. Gunakan JPG, PNG, atau WebP.')])
-    if (typeErr) { fieldErrors.imageFile = typeErr; form.imageFile = null; form.imagePreview = false; return }
-    // Validate size
-    const sizeErr = validate(file, [rules.fileSize(MAX_IMAGE_SIZE, 'Ukuran gambar maks. 2MB.')])
-    if (sizeErr) { fieldErrors.imageFile = sizeErr; form.imageFile = null; form.imagePreview = false; return }
+    // Validate type & size
+    const typeErr = validate(file, [rules.fileType(ALLOWED_IMAGE_EXTS, 'Gagal: Format foto harus JPG/PNG dan ukuran maksimal 2 MB.')])
+    if (typeErr) { fieldErrors.imageFile = typeErr; form.imageFile = null; form.imagePreview = false; if (imageInput.value) imageInput.value.value = ''; return }
+    const sizeErr = validate(file, [rules.fileSize(MAX_IMAGE_SIZE, 'Gagal: Format foto harus JPG/PNG dan ukuran maksimal 2 MB.')])
+    if (sizeErr) { fieldErrors.imageFile = sizeErr; form.imageFile = null; form.imagePreview = false; if (imageInput.value) imageInput.value.value = ''; return }
     form.imageFile = file
     form.imagePreview = true
   }
@@ -487,6 +500,12 @@ const productEmoji = (p) => {
 const stockClass = (p) => p.stock === 0 ? 'stock-out' : p.isLowStock ? 'stock-low' : 'stock-ok'
 const stockBadgeClass = (p) => p.stock === 0 ? 'badge-danger' : p.isLowStock ? 'badge-warning' : 'badge-success'
 
+/** Potong nama produk > maxLen karakter untuk tampilan tabel */
+const truncateName = (name, maxLen = 25) => {
+  if (!name) return ''
+  return name.length > maxLen ? name.slice(0, maxLen) + '...' : name
+}
+
 const openModal = (product = null) => {
   editTarget.value = product
   formError.value = ''
@@ -495,8 +514,8 @@ const openModal = (product = null) => {
   } else {
     Object.assign(form, { name: '', sku: '', categoryId: '', price: null, stock: null, lowStockThreshold: 10, imageFile: null, imagePreview: false })
   }
-  Object.assign(fieldErrors, { name: '', sku: '', price: '', imageFile: '', lowStockThreshold: '' })
-  Object.assign(touched, { name: false, sku: false, price: false, lowStockThreshold: false })
+  Object.assign(fieldErrors, { name: '', sku: '', price: '', stock: '', imageFile: '', lowStockThreshold: '' })
+  Object.assign(touched, { name: false, sku: false, price: false, stock: false, lowStockThreshold: false })
   showModal.value = true
 }
 
@@ -514,10 +533,10 @@ const handleSubmit = async () => {
 
   const payload = {
     name: form.name.trim(), sku: form.sku.trim(), categoryId: form.categoryId,
-    price: form.price, stock: form.stock ?? 0,
+    price: form.price,
     lowStockThreshold: form.lowStockThreshold ?? 10,
   }
-  if (form.imageFile) payload.imageFile = form.imageFile
+  if (form.imageFile) payload.images = [form.imageFile]
   const result = editTarget.value
     ? await store.updateProduct(editTarget.value.id, payload)
     : await store.addProduct(payload)
@@ -1178,6 +1197,10 @@ const handleRemovePlItem = async (pli) => {
   font-weight: 600;
   color: var(--text-primary);
   display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .product-id {
