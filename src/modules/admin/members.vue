@@ -43,10 +43,10 @@
             <td>
               <div class="cell-member">
                 <div class="member-avatar">{{ m.name[0] }}</div>
-                <span class="member-name">{{ m.name }}</span>
+                <span class="member-name" :title="m.name">{{ truncateName(m.name, 20) }}</span>
               </div>
             </td>
-            <td><a :href="`tel:${m.phone}`" class="link-phone">{{ m.phone }}</a></td>
+            <td><a :href="`tel:${m.phone}`" class="link-phone" :title="m.phone">{{ m.phone.length > 12 ? m.phone.substring(0, 12) + '...' : m.phone }}</a></td>
             <td class="col-date">{{ formatDate(m.createdAt) }}</td>
             <td class="col-actions">
               <button class="action-btn edit" @click="openModal(m)" title="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -83,7 +83,7 @@
                   :class="{ 'input-error': touched.name && fieldErrors.name }"
                   type="text" 
                   placeholder="contoh: Budi Darma" 
-                  maxlength="100"
+                  maxlength="250"
                   @blur="touched.name = true"
                   @input="fieldErrors.name = ''"
                 />
@@ -97,7 +97,7 @@
                   :class="{ 'input-error': touched.phone && fieldErrors.phone }"
                   type="tel" 
                   placeholder="08xxxxxxxxxx" 
-                  maxlength="15"
+                  maxlength="50"
                   @blur="touched.phone = true"
                   @input="fieldErrors.phone = ''"
                 />
@@ -106,7 +106,7 @@
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="store.loading || !isValid">
+                <button type="submit" class="btn btn-primary" :disabled="store.loading">
                   <span v-if="store.loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan' : 'Tambah Member' }}
                 </button>
@@ -163,9 +163,9 @@ const validationRules = () => ({
     value: form.name,
     rules: [
       rules.noWhitespaceOnly('Input tidak boleh hanya berisi spasi.'),
-      rules.required('Nama wajib diisi.'),
+      rules.required('Mohon maaf, Nama Lengkap perlu Anda isi terlebih dahulu.'),
       rules.minLength(3, 'Nama minimal 3 karakter.'),
-      rules.maxLength(100, 'Nama maksimal 100 karakter.'),
+      rules.maxLength(250, 'Nama maksimal 250 karakter.'),
       rules.noSpecialChars('Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
     ],
   },
@@ -173,8 +173,14 @@ const validationRules = () => ({
     value: form.phone,
     rules: [
       rules.noWhitespaceOnly('Input tidak boleh hanya berisi spasi.'),
-      rules.required('No. telepon wajib diisi.'),
-      rules.pattern(/^[0-9]{8,15}$/, 'Nomor telepon tidak valid, minimal 8 digit angka.'),
+      rules.required('Mohon maaf, Nomor Telepon perlu Anda isi terlebih dahulu.'),
+      rules.pattern(/^[0-9]{8,50}$/, 'Nomor telepon tidak valid, minimal 8 dan maksimal 50 digit angka.'),
+      (val) => {
+        if (!val) return ''
+        const exists = store.members.find(m => m.phone === val && m.id !== editTarget.value?.id)
+        if (exists) return 'Mohon maaf, nomor telepon ini sudah terdaftar. Silakan gunakan nomor lain.'
+        return ''
+      }
     ],
   },
 })
@@ -186,6 +192,11 @@ onMounted(() => store.fetchMembers())
 const formatDate = (iso) => {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const truncateName = (name, maxLen) => {
+  if (!name) return ''
+  return name.length > maxLen ? name.substring(0, maxLen) + '...' : name
 }
 
 const openModal = (m = null) => {
