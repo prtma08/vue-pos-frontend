@@ -167,7 +167,7 @@
                 </svg>
               </button>
             </div>
-            <form @submit.prevent="handleSubmit" class="modal-form">
+            <form @submit.prevent="handleSubmit" class="modal-form" novalidate>
               <div class="form-grid">
                 <div class="form-group span-2">
                   <label class="form-label">
@@ -180,7 +180,7 @@
                     :class="{ 'input-error': touched.name && fieldErrors.name }"
                     type="text" 
                     placeholder="Contoh: Nasi Goreng Spesial" 
-                    maxlength="100"
+                    maxlength="50"
                     @blur="touched.name = true"
                     @input="fieldErrors.name = ''"
                   />
@@ -214,7 +214,9 @@
                     placeholder="-- Pilih Kategori --"
                     search-placeholder="Cari Kategori..."
                     :clearable="false"
+                    @update:modelValue="fieldErrors.categoryId = ''; touched.categoryId = true"
                   />
+                  <span v-if="touched.categoryId && fieldErrors.categoryId" class="field-error">{{ fieldErrors.categoryId }}</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">
@@ -228,7 +230,6 @@
                       class="input-field" 
                       :class="{ 'input-error': touched.price && fieldErrors.price }"
                       type="number" 
-                      min="1" 
                       placeholder="25000"
                       @blur="touched.price = true"
                       @input="fieldErrors.price = ''"
@@ -293,7 +294,7 @@
               
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="store.loading || !isValid">
+                <button type="submit" class="btn btn-primary" :disabled="store.loading">
                   <span v-if="store.loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan Perubahan' : 'Tambah Produk' }}
                 </button>
@@ -407,18 +408,24 @@ const priceHistoryTarget = ref(null)
 const priceHistoryList = ref([])
 
 const form = reactive({ name: '', sku: '', categoryId: '', price: null, unit: 'Pcs', lowStockThreshold: 10, imageFile: null, imagePreview: false })
-const fieldErrors = reactive({ name: '', sku: '', price: '', unit: '', imageFile: '', lowStockThreshold: '' })
-const touched = reactive({ name: false, sku: false, price: false, unit: false, lowStockThreshold: false })
+const fieldErrors = reactive({ name: '', sku: '', categoryId: '', price: '', unit: '', imageFile: '', lowStockThreshold: '' })
+const touched = reactive({ name: false, sku: false, categoryId: false, price: false, unit: false, lowStockThreshold: false })
 const imageInput = ref(null)
 
 const productValidationRules = () => ({
+  categoryId: {
+    value: form.categoryId,
+    rules: [
+      rules.required('Kategori wajib dipilih.'),
+    ],
+  },
   name: {
     value: form.name,
     rules: [
       rules.noWhitespaceOnly('Input tidak boleh hanya berisi spasi.'),
       rules.required('Nama produk wajib diisi.'),
       rules.minLength(3, 'Nama produk minimal 3 karakter.'),
-      rules.maxLength(100, 'Nama produk maksimal 100 karakter.'),
+      rules.maxLength(50, 'Nama produk maksimal 50 karakter.'),
     ],
   },
   sku: {
@@ -434,7 +441,7 @@ const productValidationRules = () => ({
     value: form.price,
     rules: [
       rules.required('Harga jual wajib diisi.'),
-      rules.minValue(1, 'Harga jual harus lebih dari 0.'),
+      rules.minValue(0, 'Harga jual tidak boleh bernilai negatif.'),
     ],
   },
   unit: {
@@ -505,8 +512,8 @@ const openModal = (product = null) => {
   } else {
     Object.assign(form, { name: '', sku: '', categoryId: '', price: null, unit: 'Pcs', lowStockThreshold: 10, imageFile: null, imagePreview: false })
   }
-  Object.assign(fieldErrors, { name: '', sku: '', price: '', unit: '', imageFile: '', lowStockThreshold: '' })
-  Object.assign(touched, { name: false, sku: false, price: false, unit: false, lowStockThreshold: false })
+  Object.assign(fieldErrors, { name: '', sku: '', categoryId: '', price: '', unit: '', imageFile: '', lowStockThreshold: '' })
+  Object.assign(touched, { name: false, sku: false, categoryId: false, price: false, unit: false, lowStockThreshold: false })
   showModal.value = true
 }
 
@@ -520,7 +527,10 @@ const handleSubmit = async () => {
   // ── Per-field validation ──
   const { valid, errors } = validateAll(productValidationRules())
   Object.assign(fieldErrors, errors)
-  if (!valid) return
+  if (!valid) {
+    formError.value = 'Mohon lengkapi atau perbaiki isian data di atas sebelum menyimpan.'
+    return
+  }
 
   const payload = {
     name: form.name.trim(), sku: form.sku.trim(), categoryId: form.categoryId,
