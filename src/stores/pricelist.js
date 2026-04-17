@@ -41,6 +41,23 @@ export const usePricelistStore = defineStore('pricelist', () => {
     const loading = ref(false)
     const error = ref(null)
 
+    const normalizePricelist = (pl) => ({
+        id: pl?.ID ?? pl?.id ?? '',
+        name: pl?.Name ?? pl?.name ?? '',
+        description: pl?.Description ?? pl?.description ?? '',
+        is_active: pl?.IsActive ?? pl?.is_active ?? false,
+        createdAt: pl?.CreatedAt ?? pl?.createdAt ?? new Date().toISOString()
+    })
+
+    const normalizePricelistItem = (pli) => ({
+        id: pli?.ID ?? pli?.id ?? '',
+        pricelistId: pli?.PricelistId ?? pli?.PricelistID ?? pli?.pricelistId ?? '',
+        productId: pli?.ProductId ?? pli?.ProductID ?? pli?.productId ?? '',
+        productName: pli?.ProductName ?? pli?.productName ?? '',
+        productSku: pli?.ProductSku ?? pli?.ProductSKU ?? pli?.productSku ?? '',
+        eventPrice: pli?.EventPrice ?? pli?.eventPrice ?? 0
+    })
+
     // ── Computed ──────────────────────────────────────────────────────────────
     const activePricelist = computed(() =>
         pricelists.value.find(pl => pl.is_active) ?? null
@@ -92,11 +109,14 @@ export const usePricelistStore = defineStore('pricelist', () => {
         try {
             const { default: apiClient } = await import('@/api/client')
             const [plRes, pliRes] = await Promise.all([
-                apiClient.get('/pricelists'),
-                apiClient.get('/pricelist-items'),
+                apiClient.get('/pricelists').catch(() => ({ data: [] })),
+                apiClient.get('/pricelist-items').catch(() => ({ data: [] })),
             ])
-            pricelists.value = plRes.data?.data ?? plRes.data ?? []
-            pricelistItems.value = pliRes.data?.data ?? pliRes.data ?? []
+            const rawPls = plRes.data?.data ?? plRes.data ?? []
+            const rawPlis = pliRes.data?.data ?? pliRes.data ?? []
+            
+            pricelists.value = Array.isArray(rawPls) ? rawPls.map(normalizePricelist) : []
+            pricelistItems.value = Array.isArray(rawPlis) ? rawPlis.map(normalizePricelistItem) : []
             return { success: true }
         } catch (err) {
             const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
@@ -176,7 +196,7 @@ export const usePricelistStore = defineStore('pricelist', () => {
             const { default: apiClient } = await import('@/api/client')
             const res = await apiClient.post('/pricelists', payload)
             const created = res.data?.data ?? res.data
-            pricelists.value.push(created)
+            pricelists.value.push(normalizePricelist(created))
             return { success: true, data: created }
         } catch (err) {
             const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
@@ -272,7 +292,7 @@ export const usePricelistStore = defineStore('pricelist', () => {
             const { default: apiClient } = await import('@/api/client')
             const res = await apiClient.post('/pricelist-items', { pricelistId, productId: product.id, eventPrice })
             const created = res.data?.data ?? res.data
-            pricelistItems.value.push(created)
+            pricelistItems.value.push(normalizePricelistItem(created))
             return { success: true, data: created }
         } catch (err) {
             const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'

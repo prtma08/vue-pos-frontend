@@ -155,11 +155,12 @@
                         <div class="event-price-wrap">
                           <span class="rp-prefix">Rp</span>
                           <input
-                            type="number"
-                            min="0"
-                            :value="pli.eventPrice"
+                            type="text"
+                            :value="fmt(pli.eventPrice)"
                             class="event-price-input"
                             :class="{ 'input-loss': pli.eventPrice < getProductHpp(pli.productId) }"
+                            @focus="$event.target.value = pli.eventPrice || ''"
+                            @blur="$event.target.value = fmt(pli.eventPrice)"
                             @change="handleUpdateItemPrice(pli, $event.target.value)"
                           />
                         </div>
@@ -279,14 +280,13 @@
                 <div class="input-with-prefix">
                   <span class="prefix">Rp</span>
                   <input
-                    v-model.number="addItemForm.eventPrice"
                     class="input-field"
+                    :value="addItemForm.eventPrice > 0 ? fmt(addItemForm.eventPrice) : ''"
+                    @input="onAddItemPriceInput"
                     :class="{ 'input-loss': addItemForm.eventPrice > 0 && addItemForm.eventPrice < getProductHpp(addItemForm.productId) }"
-                    type="number"
-                    min="0"
+                    type="text"
                     placeholder="0"
                     required
-                    @input="addItemFormError = ''"
                   />
                 </div>
 
@@ -358,6 +358,26 @@ onMounted(async () => {
 })
 
 const fmt = (n) => (n ?? 0).toLocaleString('id-ID')
+
+const parseNumber = (val) => {
+  if (typeof val === 'number') return val
+  const str = String(val).replace(/[^0-9]/g, '')
+  return str ? parseInt(str, 10) : 0
+}
+
+const onAddItemPriceInput = (e) => {
+  addItemFormError.value = ''
+  const cursor = e.target.selectionStart
+  const origLen = e.target.value.length
+
+  const val = parseNumber(e.target.value)
+  addItemForm.eventPrice = val
+  e.target.value = val > 0 ? fmt(val) : ''
+
+  // Attempt to restore cursor roughly
+  const diff = e.target.value.length - origLen
+  e.target.setSelectionRange(cursor + diff, cursor + diff)
+}
 
 // ── Product helpers ───────────────────────────────────────────────────────────
 const getProductHpp = (productId) => {
@@ -451,13 +471,14 @@ const handleAddPlItem = async () => {
   addItemFormError.value = ''
   const product = productsStore.getProductById(addItemForm.productId)
   if (!product) { addItemFormError.value = 'Produk tidak valid'; return }
-  const result = await pricelistStore.addPricelistItem(addItemTargetPl.value.id, product, addItemForm.eventPrice)
+  const cleanPrice = parseNumber(addItemForm.eventPrice)
+  const result = await pricelistStore.addPricelistItem(addItemTargetPl.value.id, product, cleanPrice)
   if (result.success) { showAddItemModal.value = false }
   else { addItemFormError.value = result.message }
 }
 
 const handleUpdateItemPrice = async (pli, rawValue) => {
-  const newPrice = parseInt(rawValue)
+  const newPrice = parseNumber(rawValue)
   if (isNaN(newPrice) || newPrice < 0) return
   await pricelistStore.updatePricelistItem(pli.id, newPrice)
 }

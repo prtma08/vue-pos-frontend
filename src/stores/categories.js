@@ -5,10 +5,10 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const MOCK_CATEGORIES = [
-    { id: 'cat-1', name: 'Makanan', description: 'Produk makanan & sajian utama', hasExpiry: true, createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'cat-2', name: 'Minuman', description: 'Berbagai pilihan minuman segar', hasExpiry: true, createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'cat-3', name: 'Snack', description: 'Camilan dan makanan ringan', hasExpiry: false, createdAt: '2024-01-02T00:00:00.000Z' },
-    { id: 'cat-4', name: 'Dessert', description: 'Pencuci mulut dan es krim', hasExpiry: true, createdAt: '2024-01-03T00:00:00.000Z' },
+    { id: 'cat-1', name: 'Makanan', hasExpiry: true, createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'cat-2', name: 'Minuman', hasExpiry: true, createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'cat-3', name: 'Snack', hasExpiry: false, createdAt: '2024-01-02T00:00:00.000Z' },
+    { id: 'cat-4', name: 'Dessert', hasExpiry: true, createdAt: '2024-01-03T00:00:00.000Z' },
 ]
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -24,8 +24,7 @@ export const useCategoriesStore = defineStore('categories', () => {
         if (!searchTerm.value) return categories.value
         const q = searchTerm.value.toLowerCase()
         return categories.value.filter(c =>
-            c.name.toLowerCase().includes(q) ||
-            c.description?.toLowerCase().includes(q)
+            c.name.toLowerCase().includes(q)
         )
     })
 

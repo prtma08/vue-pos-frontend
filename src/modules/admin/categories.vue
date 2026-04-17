@@ -30,7 +30,7 @@
 
       <table v-else class="data-table">
         <thead>
-          <tr><th>#</th><th>Nama Kategori</th><th>Deskripsi</th><th>Kadaluarsa</th><th>Dibuat</th><th>Aksi</th></tr>
+          <tr><th>#</th><th>Nama Kategori</th><th>Kadaluarsa</th><th>Dibuat</th><th>Aksi</th></tr>
         </thead>
         <tbody>
           <tr v-if="store.filtered.length === 0">
@@ -44,7 +44,6 @@
                 <span>{{ cat.name }}</span>
               </div>
             </td>
-            <td class="col-desc">{{ cat.description || '—' }}</td>
             <td>
               <span v-if="cat.hasExpiry" class="expiry-badge yes">✅ Ya</span>
               <span v-else class="expiry-na">tidak ada</span>
@@ -94,10 +93,6 @@
                   @input="fieldErrors.name = ''"
                 />
                 <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Deskripsi</label>
-                <textarea v-model="form.description" class="input-field" rows="3" placeholder="Deskripsi singkat kategori..."></textarea>
               </div>
               <div class="form-group">
                 <label class="form-label">Kadaluarsa</label>
@@ -163,7 +158,7 @@ const deleteTarget = ref(null)
 const formError = ref('')
 const fieldErrors = reactive({ name: '' })
 const touched = reactive({ name: false })
-const form = reactive({ name: '', description: '', hasExpiry: false })
+const form = reactive({ name: '', hasExpiry: false })
 
 const categoryRules = () => ({
   name: {
@@ -189,7 +184,6 @@ const openModal = (cat = null) => {
   editTarget.value = cat
   formError.value = ''
   form.name = cat?.name || ''
-  form.description = cat?.description || ''
   form.hasExpiry = cat?.hasExpiry || false
   Object.assign(fieldErrors, { name: '' })
   touched.name = false
@@ -208,7 +202,7 @@ const handleSubmit = async () => {
   Object.assign(fieldErrors, errors)
   if (!valid) return
 
-  const payload = { name: form.name.trim(), description: form.description.trim(), hasExpiry: form.hasExpiry }
+  const payload = { name: form.name.trim(), hasExpiry: form.hasExpiry }
   const result = editTarget.value
     ? await store.update(editTarget.value.id, payload)
     : await store.add(payload)

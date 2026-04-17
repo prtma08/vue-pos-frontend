@@ -30,7 +30,6 @@
             <th>#</th>
             <th>Nama Member</th>
             <th>Telepon</th>
-            <th>Status</th>
             <th>Bergabung</th>
             <th>Aksi</th>
           </tr>
@@ -48,11 +47,6 @@
               </div>
             </td>
             <td><a :href="`tel:${m.phone}`" class="link-phone">{{ m.phone }}</a></td>
-            <td>
-              <span class="status-badge" :class="m.isActive !== false ? 'badge-active' : 'badge-inactive'">
-                {{ m.isActive !== false ? 'Aktif' : 'Nonaktif' }}
-              </span>
-            </td>
             <td class="col-date">{{ formatDate(m.createdAt) }}</td>
             <td class="col-actions">
               <button class="action-btn edit" @click="openModal(m)" title="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -109,16 +103,6 @@
                 />
                 <span v-if="touched.phone && fieldErrors.phone" class="field-error">{{ fieldErrors.phone }}</span>
               </div>
-              <div class="form-group">
-                <label class="form-label">Status Member</label>
-                <div class="status-toggle-wrap">
-                  <label class="toggle-label">
-                    <input type="checkbox" v-model="form.isActive" class="toggle-input"/>
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-text">{{ form.isActive ? 'Aktif' : 'Nonaktif' }}</span>
-                  </label>
-                </div>
-              </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
@@ -170,7 +154,7 @@ const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
-const form = reactive({ name: '', phone: '', isActive: true })
+const form = reactive({ name: '', phone: '' })
 const fieldErrors = reactive({ name: '', phone: '' })
 const touched = reactive({ name: false, phone: false })
 
@@ -207,7 +191,7 @@ const formatDate = (iso) => {
 const openModal = (m = null) => {
   editTarget.value = m
   formError.value = ''
-  Object.assign(form, { name: m?.name || '', phone: m?.phone || '', isActive: m?.isActive !== false })
+  Object.assign(form, { name: m?.name || '', phone: m?.phone || '' })
   Object.assign(fieldErrors, { name: '', phone: '' })
   Object.assign(touched, { name: false, phone: false })
   showModal.value = true
