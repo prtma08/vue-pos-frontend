@@ -407,7 +407,7 @@ const formError = ref('')
 const priceHistoryTarget = ref(null)
 const priceHistoryList = ref([])
 
-const form = reactive({ name: '', sku: '', categoryId: '', price: null, unit: 'Pcs', lowStockThreshold: 10, imageFile: null, imagePreview: false })
+const form = reactive({ name: '', sku: '', categoryId: '', price: null, unit: '', lowStockThreshold: 10, imageFile: null, imagePreview: false })
 const fieldErrors = reactive({ name: '', sku: '', categoryId: '', price: '', unit: '', imageFile: '', lowStockThreshold: '' })
 const touched = reactive({ name: false, sku: false, categoryId: false, price: false, unit: false, lowStockThreshold: false })
 const imageInput = ref(null)
@@ -508,9 +508,9 @@ const openModal = (product = null) => {
   editTarget.value = product
   formError.value = ''
   if (product) {
-    Object.assign(form, { name: product.name, sku: product.sku || '', categoryId: product.categoryId || '', price: product.sellingPrice ?? product.price, unit: product.unit || 'Pcs', lowStockThreshold: product.lowStockThreshold ?? 10, imageFile: null, imagePreview: false })
+    Object.assign(form, { name: product.name, sku: product.sku || '', categoryId: product.categoryId || '', price: product.sellingPrice ?? product.price, unit: product.unit || '', lowStockThreshold: product.lowStockThreshold ?? 10, imageFile: null, imagePreview: false })
   } else {
-    Object.assign(form, { name: '', sku: '', categoryId: '', price: null, unit: 'Pcs', lowStockThreshold: 10, imageFile: null, imagePreview: false })
+    Object.assign(form, { name: '', sku: '', categoryId: '', price: null, unit: '', lowStockThreshold: 10, imageFile: null, imagePreview: false })
   }
   Object.assign(fieldErrors, { name: '', sku: '', categoryId: '', price: '', unit: '', imageFile: '', lowStockThreshold: '' })
   Object.assign(touched, { name: false, sku: false, categoryId: false, price: false, unit: false, lowStockThreshold: false })

@@ -128,7 +128,7 @@ export const useProductsStore = defineStore('products', () => {
   const fetchCategories = async () => {
     if (USE_MOCK) { categories.value = MOCK_CATEGORIES; return { success: true } }
     try {
-      const response = await apiClient.get('/categories')
+      const response = await apiClient.get('/categories', { params: { limit: 1000 } })
       categories.value = response.data.data ?? []
       return { success: true }
     } catch (err) {
@@ -175,7 +175,7 @@ export const useProductsStore = defineStore('products', () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       const created = res.data.data ?? res.data
-      products.value.push(normalizeProduct(created))
+      products.value.unshift(normalizeProduct(created))
       return { success: true, data: created }
     } catch (err) {
       const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
