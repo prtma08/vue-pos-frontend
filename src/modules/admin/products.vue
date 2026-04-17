@@ -33,25 +33,15 @@
           placeholder="Cari Produk atau SKU..." 
         />
       </div>
-      <div class="filter-row">
-        <button 
-          class="filter-pill" 
-          :class="{ active: !store.filters.category }" 
-          @click="store.setCategoryFilter(null)" 
-        >
-          <span class="pill-dot"></span>
-          Semua
-        </button>
-        <button
-          v-for="cat in store.categories"
-          :key="cat.id"
-          class="filter-pill"
-          :class="{ active: store.filters.category === cat.name }"
-          @click="store.setCategoryFilter(cat.name)"
-        >
-          <span class="pill-dot"></span>
-          {{ cat.name }}
-        </button>
+      <div class="filter-row" style="width: 350px;">
+        <AppCombobox
+          v-model="store.filters.category"
+          :options="[{ name: null, label: 'Semua Kategori' }, ...store.categories.map(c => ({ name: c.name, label: c.name }))]"
+          option-key="name"
+          option-label="label"
+          placeholder="Filter Kategori..."
+          :clearable="true"
+        />
       </div>
     </div>
 
@@ -77,13 +67,14 @@
             <th class="th-hpp">HPP</th>
             <th class="th-margin">Margin</th>
             <th class="th-stock">Stok</th>
+            <th class="th-unit">Satuan</th>
             <th class="th-status">Status</th>
             <th class="th-actions">Aksi</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="store.filteredProducts.length === 0">
-            <td colspan="9" class="empty-row">
+            <td colspan="10" class="empty-row">
               <div class="empty-visual">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -125,6 +116,7 @@
               </span>
             </td>
             <td class="col-stock"><span :class="stockClass(product)" class="stock-value">{{ product.stock }}</span></td>
+            <td class="col-unit"><span class="unit-badge">{{ product.unit || '—' }}</span></td>
             <td>
               <span class="status-badge" :class="stockBadgeClass(product)">
                 {{ product.stock === 0 ? 'Habis' : product.isLowStock ? 'Menipis' : 'Tersedia' }}
@@ -259,20 +251,19 @@
                 </div>
                 <div class="form-group">
                   <label class="form-label">
-                    Stok Awal
+                    Satuan
                     <span class="required">*</span>
                   </label>
                   <input 
-                    v-model.number="form.stock" 
+                    v-model="form.unit" 
                     class="input-field" 
-                    :class="{ 'input-error': touched.stock && fieldErrors.stock }"
-                    type="number" 
-                    min="0" 
-                    placeholder="50"
-                    @blur="touched.stock = true"
-                    @input="fieldErrors.stock = ''"
+                    :class="{ 'input-error': touched.unit && fieldErrors.unit }"
+                    type="text" 
+                    placeholder="Contoh: Pcs, Box, Liter"
+                    @blur="touched.unit = true"
+                    @input="fieldErrors.unit = ''"
                   />
-                  <span v-if="touched.stock && fieldErrors.stock" class="field-error">{{ fieldErrors.stock }}</span>
+                  <span v-if="touched.unit && fieldErrors.unit" class="field-error">{{ fieldErrors.unit }}</span>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Batas Stok Rendah</label>
@@ -343,6 +334,7 @@
                 <span class="detail-item">SKU: <code>{{ deleteTarget.sku || '—' }}</code></span>
                 <span class="detail-item">Stok: <strong>{{ deleteTarget.stock }}</strong></span>
               </div>
+              <p v-if="deleteError" class="field-error" style="margin-top: 1rem; text-align: center;">{{ deleteError }}</p>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-ghost" @click="deleteTarget = null">Batal</button>
@@ -414,9 +406,9 @@ const formError = ref('')
 const priceHistoryTarget = ref(null)
 const priceHistoryList = ref([])
 
-const form = reactive({ name: '', sku: '', categoryId: '', price: null, stock: null, lowStockThreshold: 10, imageFile: null, imagePreview: false })
-const fieldErrors = reactive({ name: '', sku: '', price: '', stock: '', imageFile: '', lowStockThreshold: '' })
-const touched = reactive({ name: false, sku: false, price: false, stock: false, lowStockThreshold: false })
+const form = reactive({ name: '', sku: '', categoryId: '', price: null, unit: 'Pcs', lowStockThreshold: 10, imageFile: null, imagePreview: false })
+const fieldErrors = reactive({ name: '', sku: '', price: '', unit: '', imageFile: '', lowStockThreshold: '' })
+const touched = reactive({ name: false, sku: false, price: false, unit: false, lowStockThreshold: false })
 const imageInput = ref(null)
 
 const productValidationRules = () => ({
@@ -445,11 +437,10 @@ const productValidationRules = () => ({
       rules.minValue(1, 'Harga jual harus lebih dari 0.'),
     ],
   },
-  stock: {
-    value: form.stock,
+  unit: {
+    value: form.unit,
     rules: [
-      rules.required('Stok wajib diisi.'),
-      rules.minValue(0, 'Stok tidak boleh bernilai negatif.'),
+      rules.required('Satuan wajib diisi.'),
     ],
   },
   lowStockThreshold: {
@@ -510,12 +501,12 @@ const openModal = (product = null) => {
   editTarget.value = product
   formError.value = ''
   if (product) {
-    Object.assign(form, { name: product.name, sku: product.sku || '', categoryId: product.categoryId || '', price: product.sellingPrice ?? product.price, stock: product.stock, lowStockThreshold: product.lowStockThreshold ?? 10, imageFile: null, imagePreview: false })
+    Object.assign(form, { name: product.name, sku: product.sku || '', categoryId: product.categoryId || '', price: product.sellingPrice ?? product.price, unit: product.unit || 'Pcs', lowStockThreshold: product.lowStockThreshold ?? 10, imageFile: null, imagePreview: false })
   } else {
-    Object.assign(form, { name: '', sku: '', categoryId: '', price: null, stock: null, lowStockThreshold: 10, imageFile: null, imagePreview: false })
+    Object.assign(form, { name: '', sku: '', categoryId: '', price: null, unit: 'Pcs', lowStockThreshold: 10, imageFile: null, imagePreview: false })
   }
-  Object.assign(fieldErrors, { name: '', sku: '', price: '', stock: '', imageFile: '', lowStockThreshold: '' })
-  Object.assign(touched, { name: false, sku: false, price: false, stock: false, lowStockThreshold: false })
+  Object.assign(fieldErrors, { name: '', sku: '', price: '', unit: '', imageFile: '', lowStockThreshold: '' })
+  Object.assign(touched, { name: false, sku: false, price: false, unit: false, lowStockThreshold: false })
   showModal.value = true
 }
 
@@ -533,7 +524,7 @@ const handleSubmit = async () => {
 
   const payload = {
     name: form.name.trim(), sku: form.sku.trim(), categoryId: form.categoryId,
-    price: form.price,
+    price: form.price, unit: form.unit,
     lowStockThreshold: form.lowStockThreshold ?? 10,
   }
   if (form.imageFile) payload.images = [form.imageFile]
@@ -547,10 +538,19 @@ const handleSubmit = async () => {
   }
 }
 
-const confirmDelete = (product) => { deleteTarget.value = product }
+const deleteError = ref('')
+const confirmDelete = (product) => { 
+  deleteTarget.value = product
+  deleteError.value = ''
+}
 const handleDelete = async () => {
+  deleteError.value = ''
   const result = await store.deleteProduct(deleteTarget.value.id)
-  if (result.success) deleteTarget.value = null
+  if (result.success) {
+    deleteTarget.value = null
+  } else {
+    deleteError.value = result.message || 'Gagal menghapus produk.'
+  }
 }
 
 const getProductColor = (name) => {
@@ -697,6 +697,10 @@ const handleRemovePlItem = async (pli) => {
 .margin-good { background: rgba(5,150,105,0.12); color: #059669; }
 .margin-moderate { background: rgba(217,119,6,0.12); color: #d97706; }
 .margin-low { background: rgba(220,38,38,0.12); color: #dc2626; }
+
+.th-unit { min-width: 90px; }
+.col-unit { text-align: center; }
+.unit-badge { font-size: 0.82rem; font-weight: 600; padding: 0.2rem 0.5rem; background: var(--surface-elevated); border-radius: var(--radius-sm); color: var(--text-secondary); }
 
 /* C8: Active price badge + HPP loss */
 .price-cell { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
@@ -1168,15 +1172,15 @@ const handleRemovePlItem = async (pli) => {
 }
 
 .product-avatar {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 4.5rem;
+  height: 4.5rem;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   color: #ffffff;
-  font-size: 1.25rem;
+  font-size: 2rem;
 }
 
 .product-emoji {

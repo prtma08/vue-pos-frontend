@@ -208,7 +208,7 @@ const positionPanel = () => {
 
   panelStyle.value = {
     position: 'fixed',
-    width:    rect.width + 'px',
+    minWidth: Math.max(rect.width, 200) + 'px',
     left:     rect.left + 'px',
     zIndex:   '9999',
     ...(openUp

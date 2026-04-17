@@ -167,6 +167,7 @@ export const useProductsStore = defineStore('products', () => {
       fd.append('price', String(payload.price ?? payload.sellingPrice))
       fd.append('lowStockThreshold', String(payload.lowStockThreshold ?? 0))
       if (payload.categoryId) fd.append('categoryId', payload.categoryId)
+      if (payload.unit) fd.append('unit', payload.unit)
       // Append image files (File objects from <input type="file">)
       const imageFiles = payload.images || (payload.imageFile ? [payload.imageFile] : [])
       imageFiles.forEach(file => fd.append('images', file))
@@ -224,6 +225,7 @@ export const useProductsStore = defineStore('products', () => {
       if (price != null) fd.append('price', String(price))
       if (safeUpdates.lowStockThreshold != null) fd.append('lowStockThreshold', String(safeUpdates.lowStockThreshold))
       if (safeUpdates.categoryId) fd.append('categoryId', safeUpdates.categoryId)
+      if (safeUpdates.unit) fd.append('unit', safeUpdates.unit)
       const imageFiles = safeUpdates.images || (safeUpdates.imageFile ? [safeUpdates.imageFile] : [])
       imageFiles.forEach(file => fd.append('images', file))
       const response = await apiClient.put(`/products/${productId}`, fd, {
@@ -550,10 +552,10 @@ export const useProductsStore = defineStore('products', () => {
 
   let searchTimeout
   watch(() => filters.value.searchTerm, (newVal) => {
-      clearTimeout(searchTimeout)
-      searchTimeout = setTimeout(() => {
-          fetchProducts({ search: newVal, page: 1 })
-      }, 500)
+    clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(() => {
+      fetchProducts({ search: newVal, page: 1 })
+    }, 500)
   })
 
   return {
