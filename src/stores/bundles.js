@@ -6,11 +6,11 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const MOCK_BUNDLES = [
     {
-        id: 'bnd-1', name: 'Paket Hemat A', sku: 'BND-001', price: 45000,
+        id: 'bnd-1', name: 'Paket Hemat A', sku: 'BND-001', price: 45000, totalStock: 10, hppAverage: 17000,
         categoryId: 'cat-1', images: [],
         components: [
-            { componentId: 'prod-1', qty: 1 },
-            { componentId: 'prod-4', qty: 2 },
+            { componentId: 'prod-1', qty: 1, component: { name: 'Nasi Goreng Spesial', price: 25000, hppAverage: 12000 } },
+            { componentId: 'prod-4', qty: 2, component: { name: 'Es Teh Manis', price: 6000, hppAverage: 2000 } },
         ],
         createdAt: '2024-01-10T00:00:00.000Z',
     },
@@ -74,22 +74,25 @@ export const useBundlesStore = defineStore('bundles', () => {
         } finally { loading.value = false }
     }
 
-    // ── Helper: build FormData for create/update ─────────────────────────────
-    const _buildBundleFormData = (payload) => {
-        const fd = new FormData()
-        if (payload.name) fd.append('name', payload.name)
-        if (payload.sku) fd.append('sku', payload.sku)
-        if (payload.price != null) fd.append('price', String(payload.price))
-        if (payload.categoryId) fd.append('categoryId', payload.categoryId)
-        // Images: array of File objects
-        if (Array.isArray(payload.images)) {
-            payload.images.forEach(file => fd.append('images', file))
+    // ── Helper: build JSON payload for create/update ─────────────────────────────
+    const _buildBundlePayload = (payload) => {
+        return {
+            name: payload.name,
+            sku: payload.sku,
+            price: Number(payload.price),
+            totalStock: Number(payload.totalStock || 0),
+            categoryId: payload.categoryId,
+            description: payload.description || 'Paket Bundling',
+            unit: payload.unit || 'pcs',
+            lowStockThreshold: Number(payload.lowStockThreshold || 10),
+            isBundle: true,
+            components: Array.isArray(payload.components) 
+                ? payload.components.map(c => ({ componentId: c.componentId, qty: Number(c.qty) }))
+                : [],
+            bundleComponents: Array.isArray(payload.components) 
+                ? payload.components.map(c => ({ componentId: c.componentId, qty: Number(c.qty) }))
+                : []
         }
-        // Components: must be JSON-stringified array [{componentId, qty}]
-        if (Array.isArray(payload.components)) {
-            fd.append('components', JSON.stringify(payload.components))
-        }
-        return fd
     }
 
     // ── create ────────────────────────────────────────────────────────────────
@@ -101,7 +104,7 @@ export const useBundlesStore = defineStore('bundles', () => {
             await new Promise(r => setTimeout(r, 300))
             const newBundle = {
                 id: `bnd-${nextMockId++}`,
-                name: payload.name, sku: payload.sku, price: payload.price,
+                name: payload.name, sku: payload.sku, price: payload.price, totalStock: payload.totalStock ?? 0,
                 categoryId: payload.categoryId, images: [],
                 components: payload.components || [],
                 createdAt: new Date().toISOString(),
@@ -113,12 +116,12 @@ export const useBundlesStore = defineStore('bundles', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const fd = _buildBundleFormData(payload)
-            const res = await apiClient.post('/bundles', fd, {
-                headers: { 'Content-Type': 'multipart/form-data' },
+            const body = _buildBundlePayload(payload)
+            const res = await apiClient.post('/bundles', body, {
+                headers: { 'Content-Type': 'application/json' },
             })
             const created = res.data.data ?? res.data
-            bundles.value.push(created)
+            bundles.value.unshift(created)
             return { success: true, data: created }
         } catch (err) {
             const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
@@ -142,9 +145,9 @@ export const useBundlesStore = defineStore('bundles', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const fd = _buildBundleFormData(payload)
-            const res = await apiClient.patch(`/bundles/${id}`, fd, {
-                headers: { 'Content-Type': 'multipart/form-data' },
+            const body = _buildBundlePayload(payload)
+            const res = await apiClient.patch(`/bundles/${id}`, body, {
+                headers: { 'Content-Type': 'application/json' },
             })
             const idx = bundles.value.findIndex(b => b.id === id)
             if (idx !== -1) bundles.value[idx] = { ...bundles.value[idx], ...(res.data.data ?? res.data) }
@@ -154,6 +157,21 @@ export const useBundlesStore = defineStore('bundles', () => {
             const validationErrors = err.response?.data?.errors || null
             return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
+    }
+
+    // ── uploadImage (FormData workaround) ───────────────────────────────────
+    const uploadImage = async (id, file) => {
+        try {
+            const { default: apiClient } = await import('@/api/client')
+            const fd = new FormData()
+            fd.append('images', file)
+            const res = await apiClient.patch(`/bundles/${id}`, fd, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            })
+            return { success: true, data: res.data.data ?? res.data }
+        } catch (err) {
+            return { success: false, message: err.message }
+        }
     }
 
     // ── remove ────────────────────────────────────────────────────────────────
@@ -184,6 +202,6 @@ export const useBundlesStore = defineStore('bundles', () => {
 
     return {
         bundles, loading, error, pagination,
-        fetchAll, fetchById, create, update, remove,
+        fetchAll, fetchById, create, update, uploadImage, remove,
     }
 })

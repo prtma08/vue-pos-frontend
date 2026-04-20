@@ -61,21 +61,21 @@
           </tr>
 
           <!-- Pricelist row -->
-          <tr v-for="pl in pricelistStore.pricelists" :key="pl.id" class="table-row">
+          <tr v-for="pl in paginatedPricelists" :key="pl.id" class="table-row">
             <td>
               <div class="pl-name-cell">
                 <span class="pl-icon">🏷️</span>
-                <strong>{{ pl.name }}</strong>
+                <strong :title="pl.name">{{ truncateName(pl.name, 20) }}</strong>
               </div>
             </td>
-            <td class="col-desc">{{ pl.description || '—' }}</td>
+            <td class="col-desc" :title="pl.description">{{ pl.description ? truncateName(pl.description, 20) : '—' }}</td>
             <td>
               <span class="count-chip">{{ pricelistStore.getItemsByPricelist(pl.id).length }} produk</span>
             </td>
             <td>
               <div class="toggle-cell">
                 <label class="toggle-switch" :title="pl.isActive ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'">
-                  <input type="checkbox" :checked="pl.isActive" @change="handleTogglePricelist(pl)" />
+                  <input type="checkbox" :checked="pl.isActive" @change="handleTogglePricelist(pl, $event)" />
                   <span class="toggle-slider"></span>
                 </label>
                 <span class="status-badge" :class="pl.isActive ? 'badge-success' : 'badge-inactive'">
@@ -110,7 +110,7 @@
           </tr>
 
           <!-- Expanded: product items per pricelist -->
-          <template v-for="pl in pricelistStore.pricelists" :key="'exp-' + pl.id">
+          <template v-for="pl in paginatedPricelists" :key="'exp-' + pl.id">
             <tr v-if="expandedPlId === pl.id" class="pl-items-row">
               <td colspan="5" class="pl-items-cell">
 
@@ -191,11 +191,18 @@
 
         </tbody>
       </table>
+
+      <AppPagination 
+        :current-page="currentPage"
+        :total-pages="totalPages"
+        :limit="itemsPerPage"
+        :total-items="totalItems"
+        @page-change="onPageChange"
+      />
     </div>
 
     <!-- ── Modal: Add / Edit Pricelist ──────────────────────────────── -->
-    <Teleport to="body">
-      <transition name="modal-fade">
+    <transition name="modal-fade">
         <div v-if="showPlModal" class="modal-overlay" @click.self="showPlModal = false">
           <div class="modal-box">
             <div class="modal-header">
@@ -212,7 +219,16 @@
             <form @submit.prevent="handlePlSubmit" class="modal-form">
               <div class="form-group">
                 <label class="form-label">Nama Event <span class="required">*</span></label>
-                <input v-model="plForm.name" class="input-field" type="text" placeholder="Contoh: Promo Lebaran 2026" required />
+                <input 
+                  v-model="plForm.name" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.name && fieldErrors.name }"
+                  type="text" 
+                  placeholder="Contoh: Promo Lebaran 2026"
+                  @blur="touched.name = true"
+                  @input="fieldErrors.name = ''"
+                />
+                <span v-if="touched.name && fieldErrors.name" class="field-error-msg">{{ fieldErrors.name }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Deskripsi</label>
@@ -229,12 +245,10 @@
             </form>
           </div>
         </div>
-      </transition>
-    </Teleport>
+    </transition>
 
     <!-- ── Modal: Tambah Produk ke Pricelist ─────────────────────────── -->
-    <Teleport to="body">
-      <transition name="modal-fade">
+    <transition name="modal-fade">
         <div v-if="showAddItemModal" class="modal-overlay" @click.self="showAddItemModal = false">
           <div class="modal-box">
             <div class="modal-header">
@@ -335,8 +349,7 @@
             </form>
           </div>
         </div>
-      </transition>
-    </Teleport>
+    </transition>
 
   </div>
 </template>
@@ -346,9 +359,26 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useProductsStore } from '@/stores/products'
 import { usePricelistStore } from '@/stores/pricelist'
 import AppCombobox from '@/components/AppCombobox.vue'
+import AppPagination from '@/components/AppPagination.vue'
+import { validateAll, rules } from '@/utils/validators'
 
 const productsStore  = useProductsStore()
 const pricelistStore = usePricelistStore()
+
+const currentPage = ref(1)
+const itemsPerPage = ref(10)
+const totalItems = computed(() => pricelistStore.pricelists.length)
+const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value))
+
+const paginatedPricelists = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value
+  const end = start + itemsPerPage.value
+  return pricelistStore.pricelists.slice(start, end)
+})
+
+const onPageChange = (page) => {
+  currentPage.value = page
+}
 
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
@@ -358,6 +388,8 @@ onMounted(async () => {
 })
 
 const fmt = (n) => (n ?? 0).toLocaleString('id-ID')
+
+const truncateName = (name, maxLen = 20) => name && name.length > maxLen ? name.slice(0, maxLen) + '...' : name
 
 const parseNumber = (val) => {
   if (typeof val === 'number') return val
@@ -400,6 +432,19 @@ const showPlModal    = ref(false)
 const plEditTarget   = ref(null)
 const plFormError    = ref('')
 const plForm         = reactive({ name: '', description: '' })
+const fieldErrors    = reactive({ name: '' })
+const touched        = reactive({ name: false })
+
+const validationRules = () => ({
+  name: {
+    value: plForm.name.trim(),
+    rules: [
+      rules.required('Nama Event wajib diisi.'),
+      rules.maxLength(100, 'Nama Event maksimal 100 karakter.'),
+      rules.noSpecialChars('Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
+    ]
+  }
+})
 
 const showAddItemModal = ref(false)
 const addItemTargetPl  = ref(null)
@@ -417,12 +462,18 @@ const availableProductsForPl = computed(() => {
 const openPlModal = (pl = null) => {
   plEditTarget.value = pl
   plFormError.value  = ''
+  Object.assign(fieldErrors, { name: '' })
+  Object.assign(touched, { name: false })
   Object.assign(plForm, { name: pl?.name ?? '', description: pl?.description ?? '' })
   showPlModal.value  = true
 }
 
 const handlePlSubmit = async () => {
   plFormError.value = ''
+  Object.keys(touched).forEach(k => touched[k] = true)
+  const { valid, errors } = validateAll(validationRules())
+  Object.assign(fieldErrors, errors)
+  if (!valid) return
   const result = plEditTarget.value
     ? await pricelistStore.updatePricelist(plEditTarget.value.id, { name: plForm.name, description: plForm.description })
     : await pricelistStore.addPricelist({ name: plForm.name, description: plForm.description })
@@ -430,12 +481,18 @@ const handlePlSubmit = async () => {
   else { plFormError.value = result.message }
 }
 
-const handleTogglePricelist = async (pl) => {
+const handleTogglePricelist = async (pl, event) => {
   if (pl.isActive) {
-    if (confirm('Nonaktifkan event ini?')) await pricelistStore.deactivateAll()
+    if (confirm('Nonaktifkan event ini?')) {
+      await pricelistStore.deactivateAll()
+    } else {
+      if (event) event.target.checked = true
+    }
   } else {
     if (confirm(`Aktifkan "${pl.name}"?\n\nEvent lain yang sedang aktif akan dinonaktifkan secara otomatis.`)) {
       await pricelistStore.activatePricelist(pl.id)
+    } else {
+      if (event) event.target.checked = false
     }
   }
 }
@@ -951,6 +1008,15 @@ const handleRemovePlItem = async (pli) => {
   padding: 0.75rem 1rem;
   font-size: 0.83rem;
   color: var(--success);
+}
+
+.field-error-msg {
+  font-size: 0.78rem;
+  color: var(--danger);
+  margin-top: -0.25rem;
+}
+.input-error {
+  border-color: var(--danger) !important;
 }
 
 .form-error-msg {

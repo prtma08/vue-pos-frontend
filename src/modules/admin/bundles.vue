@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h1 class="page-title">Manajemen Paket</h1>
-        <p class="page-subtitle">{{ bundles.length }} paket terdaftar</p>
+        <p class="page-subtitle">{{ bundlesStore.pagination.totalItems }} paket terdaftar</p>
       </div>
       <button class="btn btn-primary" @click="openModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -25,15 +25,15 @@
 
     <!-- Bundle Cards -->
     <div class="bundle-grid">
-      <div v-if="loading" class="state-loading"><span class="spinner-ring"></span> Memuat data...</div>
-      <div v-else-if="filteredBundles.length === 0" class="empty-state">
+      <div v-if="bundlesStore.loading" class="state-loading"><span class="spinner-ring"></span> Memuat data...</div>
+      <div v-else-if="bundlesStore.bundles.length === 0" class="empty-state">
         {{ searchTerm ? 'Tidak ada paket yang cocok dengan pencarian.' : 'Belum ada paket. Klik "Buat Paket" untuk memulai.' }}
       </div>
       <div v-for="b in filteredBundles" :key="b.id" class="bundle-card">
         <!-- Card image or emoji fallback -->
         <div class="bundle-top">
           <div class="bundle-visual">
-            <img v-if="b.imageUrl" :src="b.imageUrl" class="bundle-image" :alt="b.name" />
+            <img v-if="b.images && b.images.length > 0" :src="b.images[0]" class="bundle-image" :alt="b.name" />
             <div v-else class="bundle-badge">🎁</div>
           </div>
           <div class="bundle-actions">
@@ -52,35 +52,44 @@
         </div>
         <h3 class="bundle-name" :title="b.name">{{ truncateName(b.name, 20) }}</h3>
         <div class="bundle-items">
-          <span v-for="(item, i) in b.items" :key="i" class="item-chip">{{ item.name }} × {{ item.qty }}</span>
+          <span v-for="(item, i) in (b.bundleComponents || b.components)" :key="i" class="item-chip">{{ item.component?.name || item.name || 'Produk' }} × {{ item.qty }}</span>
         </div>
         <div class="bundle-pricing">
-          <span class="harga-asli">Rp {{ formatCurrency(b.totalOriginal) }}</span>
-          <span class="harga-paket">Rp {{ formatCurrency(b.bundlePrice) }}</span>
-          <span v-if="b.totalOriginal > b.bundlePrice" class="saving-badge">
-            Hemat {{ Math.round((1 - b.bundlePrice / b.totalOriginal) * 100) }}%
+          <span class="harga-asli">Rp {{ formatCurrency(calcTotalOriginal(b)) }}</span>
+          <span class="harga-paket">Rp {{ formatCurrency(b.price) }}</span>
+          <span v-if="calcTotalOriginal(b) > b.price" class="saving-badge">
+            Hemat {{ Math.round((1 - b.price / Math.max(1, calcTotalOriginal(b))) * 100) }}%
           </span>
         </div>
         <!-- HPP badge on card -->
         <div class="bundle-hpp-row">
           <span class="hpp-label">Modal HPP</span>
-          <span class="hpp-val">Rp {{ formatCurrency(b.bundleHpp || 0) }}</span>
+          <span class="hpp-val">Rp {{ formatCurrency(b.hppAverage || 0) }}</span>
           <span
             class="margin-chip"
-            :class="(b.bundlePrice - (b.bundleHpp || 0)) >= 0 ? 'chip-profit' : 'chip-loss'"
+            :class="(b.price - (b.hppAverage || 0)) >= 0 ? 'chip-profit' : 'chip-loss'"
           >
-            {{ (b.bundlePrice - (b.bundleHpp || 0)) >= 0 ? '▲ Profit' : '▼ Rugi' }}
-            Rp {{ formatCurrency(Math.abs(b.bundlePrice - (b.bundleHpp || 0))) }}
+            {{ (b.price - (b.hppAverage || 0)) >= 0 ? '▲ Profit' : '▼ Rugi' }}
+            Rp {{ formatCurrency(Math.abs(b.price - (b.hppAverage || 0))) }}
           </span>
         </div>
-        <div class="bundle-stock" :class="(b.bundleStock ?? 0) <= 5 ? 'stock-low' : 'stock-ok'">
+        <div class="bundle-stock" :class="(b.totalStock ?? 0) <= 5 ? 'stock-low' : 'stock-ok'">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
           </svg>
-          Stok: {{ b.bundleStock ?? 0 }}
+          Stok: {{ b.totalStock ?? 0 }}
         </div>
       </div>
     </div>
+
+    <!-- Pagination -->
+    <AppPagination 
+      :current-page="bundlesStore.pagination.page"
+      :total-pages="bundlesStore.pagination.totalPages"
+      :limit="bundlesStore.pagination.limit"
+      :total-items="bundlesStore.pagination.totalItems"
+      @page-change="(p) => bundlesStore.fetchAll({ page: p })"
+    />
 
     <!-- ── Modal: Create/Edit Bundle ─────────────────────────────────────── -->
     <Teleport to="body">
@@ -109,10 +118,44 @@
                 <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
               </div>
 
+              <!-- ► SKU Paket -->
+              <div class="form-group">
+                <label class="form-label">SKU Paket <span class="req">*</span></label>
+                <input 
+                  v-model="form.sku" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.sku && fieldErrors.sku }"
+                  type="text" 
+                  placeholder="contoh: PKT-001" 
+                  maxlength="50"
+                  @blur="touched.sku = true"
+                  @input="fieldErrors.sku = ''"
+                />
+                <span v-if="touched.sku && fieldErrors.sku" class="field-error">{{ fieldErrors.sku }}</span>
+              </div>
+
+              <!-- ► Kategori -->
+              <div class="form-group">
+                <label class="form-label">Kategori <span class="req">*</span></label>
+                <select 
+                  v-model="form.categoryId" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.categoryId && fieldErrors.categoryId }"
+                  @blur="touched.categoryId = true"
+                  @change="fieldErrors.categoryId = ''"
+                >
+                  <option value="" disabled>-- Pilih Kategori --</option>
+                  <option v-for="cat in categoriesStore.categories" :key="cat.id" :value="cat.id">
+                    {{ cat.name }}
+                  </option>
+                </select>
+                <span v-if="touched.categoryId && fieldErrors.categoryId" class="field-error">{{ fieldErrors.categoryId }}</span>
+              </div>
+
               <!-- ► Upload Gambar -->
               <div class="form-group">
-                <label class="form-label">Gambar Paket</label>
-                <div class="image-upload-area" @click="triggerFileInput" @dragover.prevent @drop.prevent="onImageDrop">
+                <label class="form-label">Gambar Paket <span class="req">*</span></label>
+                <div class="image-upload-area" :class="{ 'input-error': touched.image && fieldErrors.image }" @click="() => { touched.image = true; triggerFileInput() }" @dragover.prevent @drop.prevent="onImageDrop">
                   <img v-if="form.imagePreview" :src="form.imagePreview" class="image-preview" alt="Preview"/>
                   <div v-else class="image-placeholder">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -130,6 +173,7 @@
                     @change="onImageChange"
                   />
                 </div>
+                <span v-if="touched.image && fieldErrors.image" class="field-error">{{ fieldErrors.image }}</span>
                 <button v-if="form.imagePreview" type="button" class="btn-remove-image" @click.stop="removeImage">
                   × Hapus Gambar
                 </button>
@@ -242,8 +286,8 @@
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="loading">
-                  <span v-if="loading" class="spinner-sm"></span>
+                <button type="submit" class="btn btn-primary" :disabled="bundlesStore.loading">
+                  <span v-if="bundlesStore.loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan' : 'Buat Paket' }}
                 </button>
               </div>
@@ -280,58 +324,46 @@ import AppPagination from '@/components/AppPagination.vue'
 import { useProductsStore } from '@/stores/products'
 import AppCombobox from '@/components/AppCombobox.vue'
 import { validateAll, isFormValid, rules } from '@/utils/validators'
+import { useBundlesStore } from '@/stores/bundles'
+import { useCategoriesStore } from '@/stores/categories'
 
 const productsStore = useProductsStore()
+const bundlesStore = useBundlesStore()
+const categoriesStore = useCategoriesStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
-const loading = ref(false)
 const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
 const searchTerm = ref('')
 const fileInputRef = ref(null)
-let nextId = 3
-
-// ── Mock bundle data ─────────────────────────────────────────────────────────
-// bundleHpp: pre-computed Total HPP at creation time, snapshot-safe for reports
-const bundles = ref([
-  {
-    id: 'bnd-1', name: 'Paket Hemat A', bundleStock: 10, imageUrl: null, bundleHpp: 17000,
-    items: [
-      { productId: 'prod-1', name: 'Nasi Goreng Spesial', qty: 1, price: 25000, hpp: 12000 },
-      { productId: 'prod-4', name: 'Es Teh Manis',        qty: 1, price: 6000,  hpp: 2000  },
-    ],
-    totalOriginal: 31000, bundlePrice: 27000,
-  },
-  {
-    id: 'bnd-2', name: 'Paket Kenyang B', bundleStock: 5, imageUrl: null, bundleHpp: 28000,
-    items: [
-      { productId: 'prod-2', name: 'Mie Ayam Bakso', qty: 1, price: 18000, hpp: 10000 },
-      { productId: 'prod-5', name: 'Jus Alpukat',    qty: 1, price: 14000, hpp: 8000  },
-      { productId: 'prod-7', name: 'Kentang Goreng', qty: 2, price: 12000, hpp: 5000  },
-    ],
-    totalOriginal: 56000, bundlePrice: 48000,
-  },
-])
 
 const filteredBundles = computed(() => {
-  if (!searchTerm.value) return bundles.value
+  if (!searchTerm.value) return bundlesStore.bundles
   const term = searchTerm.value.toLowerCase()
-  return bundles.value.filter(b => b.name.toLowerCase().includes(term))
+  return bundlesStore.bundles.filter(b => b.name.toLowerCase().includes(term))
 })
+
+const calcTotalOriginal = (b) => {
+  const comps = b.bundleComponents || b.components;
+  if (!comps) return 0
+  return comps.reduce((sum, c) => sum + ((c.component?.price || c.price || 0) * (c.qty || 1)), 0)
+}
 
 // ── Form ─────────────────────────────────────────────────────────────────────
 const form = reactive({
   name: '',
+  sku: '',
+  categoryId: '',
   items: [{ productId: '', qty: 1, name: '', price: 0, hpp: 0 }],
   bundlePrice: 0,
   bundleStock: 0,
   imageFile: null,
   imagePreview: null,
 })
-const fieldErrors = reactive({ name: '', bundlePrice: '' })
-const touched = reactive({ name: false, bundlePrice: false })
+const fieldErrors = reactive({ name: '', sku: '', categoryId: '', bundlePrice: '', image: '' })
+const touched = reactive({ name: false, sku: false, categoryId: false, bundlePrice: false, image: false })
 
 const validationRules = () => ({
   name: {
@@ -343,6 +375,19 @@ const validationRules = () => ({
       rules.noSpecialChars('Nama paket hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
     ],
   },
+  sku: {
+    value: form.sku.trim(),
+    rules: [
+      rules.required('SKU paket wajib diisi.'),
+      rules.noSpecialChars('SKU hanya boleh berisi huruf dan angka.'),
+    ],
+  },
+  categoryId: {
+    value: form.categoryId,
+    rules: [
+      rules.required('Kategori paket wajib dipilih.'),
+    ],
+  },
   bundlePrice: {
     value: form.bundlePrice,
     rules: [
@@ -350,6 +395,12 @@ const validationRules = () => ({
       rules.minValue(1, 'Harga paket harus lebih dari 0.'),
     ],
   },
+  image: {
+    value: form.imagePreview || '',
+    rules: [
+      rules.required('Gambar paket wajib diunggah.'),
+    ],
+  }
 })
 
 const isValid = computed(() => isFormValid(validationRules()))
@@ -427,7 +478,7 @@ const processImageFile = (file) => {
   }
   form.imageFile = file
   const reader = new FileReader()
-  reader.onload = (e) => { form.imagePreview = e.target.result }
+  reader.onload = (e) => { form.imagePreview = e.target.result; fieldErrors.image = ''; touched.image = true }
   reader.readAsDataURL(file)
   formError.value = ''
 }
@@ -441,20 +492,44 @@ const removeImage = () => {
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
-const openModal = (b = null) => {
+const openModal = async (b = null) => {
   editTarget.value = b
   formError.value  = ''
-  Object.assign(fieldErrors, { name: '', bundlePrice: '' })
-  Object.assign(touched, { name: false, bundlePrice: false })
+  Object.assign(fieldErrors, { name: '', sku: '', categoryId: '', bundlePrice: '', image: '' })
+  Object.assign(touched, { name: false, sku: false, categoryId: false, bundlePrice: false, image: false })
   if (b) {
     form.name         = b.name
-    form.bundlePrice  = b.bundlePrice
-    form.bundleStock  = b.bundleStock ?? 0
-    form.items        = b.items.map(i => ({ ...i }))
+    form.sku          = b.sku || ''
+    form.categoryId   = b.categoryId || ''
+    form.bundlePrice  = b.price
+    form.bundleStock  = b.totalStock ?? 0
     form.imageFile    = null
-    form.imagePreview = b.imageUrl || null
+    form.imagePreview = b.images?.[0] || null
+    
+    const res = await bundlesStore.fetchById(b.id)
+    const fullB = res.success ? res.data : b
+    
+    const compsArray = fullB.bundleComponents || fullB.components || []
+    form.items = compsArray.map(i => {
+      const pId = i.componentId || i.component?.id || '';
+      if (pId && i.component && !productsStore.products.some(p => p.id === pId)) {
+        productsStore.products.push(i.component)
+      }
+      return { 
+        productId: pId, 
+        qty: i.qty, 
+        name: i.component?.name || '', 
+        price: i.component?.price || 0, 
+        hpp: i.component?.hppAverage || i.component?.hpp || 0 
+      }
+    })
+    if (form.items.length === 0) {
+      form.items = [{ productId: '', qty: 1, name: '', price: 0, hpp: 0 }]
+    }
   } else {
     form.name         = ''
+    form.sku          = ''
+    form.categoryId   = ''
     form.bundlePrice  = 0
     form.bundleStock  = 0
     form.items        = [{ productId: '', qty: 1, name: '', price: 0, hpp: 0 }]
@@ -466,7 +541,7 @@ const openModal = (b = null) => {
 const closeModal = () => { showModal.value = false; editTarget.value = null }
 
 // ── Submit ────────────────────────────────────────────────────────────────────
-const handleSubmit = () => {
+const handleSubmit = async () => {
   formError.value = ''
   // Mark all touched
   Object.keys(touched).forEach(k => touched[k] = true)
@@ -479,59 +554,53 @@ const handleSubmit = () => {
   if (validItems.length < 2) { formError.value = 'Paket harus berisi minimal 2 produk'; return }
   if (form.bundleStock < 0)  { formError.value = 'Stok paket tidak boleh negatif'; return }
 
-  // Snapshot setiap komponen dengan nama, harga, dan HPP saat ini
-  const items = validItems.map(c => {
-    const p = productsStore.products.find(x => x.id === c.productId)
-    return {
-      productId: c.productId,
-      name:      p?.name || c.name,
-      qty:       c.qty,
-      price:     p?.sellingPrice ?? c.price,
-      hpp:       p?.hpp ?? c.hpp ?? 0,
-    }
-  })
-
-  const totalOriginal = items.reduce((s, i) => s + i.price * i.qty, 0)
-
-  /**
-   * Langkah 4 – Sinkronisasi HPP ke laporan:
-   * bundleHpp adalah snapshot Total HPP saat paket disimpan.
-   * Nilai ini akan digunakan oleh cart.js sebagai hpp item bundle
-   * agar finance.vue tetap akurat meski harga komponen berubah di masa depan.
-   */
-  const bundleHpp = calculatedBundleHpp.value
-
-  // Handle imageUrl (dalam production: upload ke server, kembalikan URL)
-  // Dalam mode mock: gunakan Base64 preview sebagai URL sementara
-  const imageUrl = form.imageFile ? form.imagePreview : (editTarget.value?.imageUrl || null)
-
   const bundleData = {
     name: form.name.trim(),
-    items,
-    totalOriginal,
-    bundlePrice: form.bundlePrice,
-    bundleStock: form.bundleStock,
-    bundleHpp,     // ← snapshot HPP untuk laporan
-    imageUrl,      // ← URL gambar paket
-    type: 'BUNDLE',
-    bundleItems: items, // alias untuk kompatibilitas cart.js
+    sku: form.sku.trim(),
+    categoryId: form.categoryId,
+    totalStock: form.bundleStock,
+    price: form.bundlePrice,
+    components: validItems.map(c => ({ componentId: c.productId, qty: c.qty })),
+    images: form.imageFile ? [form.imageFile] : undefined
   }
 
+  let res;
   if (editTarget.value) {
-    const idx = bundles.value.findIndex(b => b.id === editTarget.value.id)
-    if (idx !== -1) bundles.value[idx] = { ...bundles.value[idx], ...bundleData }
+    res = await bundlesStore.update(editTarget.value.id, bundleData)
   } else {
-    bundles.value.push({ id: `bnd-${nextId++}`, ...bundleData })
+    res = await bundlesStore.create(bundleData)
   }
-  closeModal()
+
+  if (res.success) {
+    const bundleId = editTarget.value ? editTarget.value.id : res.data?.id;
+    if (form.imageFile && bundleId) {
+      await bundlesStore.uploadImage(bundleId, form.imageFile)
+    }
+    await bundlesStore.fetchAll()
+    closeModal()
+  } else {
+    let msg = res.message || 'Terjadi kesalahan saat menyimpan paket'
+    if (res.errors) {
+      if (typeof res.errors === 'string') msg += ' - ' + res.errors
+      else if (typeof res.errors === 'object') msg += ' - ' + JSON.stringify(res.errors)
+    }
+    formError.value = msg
+  }
 }
 
-const handleDelete = () => {
-  bundles.value = bundles.value.filter(b => b.id !== deleteTarget.value.id)
-  deleteTarget.value = null
+const handleDelete = async () => {
+  if (!deleteTarget.value) return
+  const res = await bundlesStore.remove(deleteTarget.value.id)
+  if (res.success) deleteTarget.value = null
 }
 
-onMounted(() => productsStore.fetchProducts())
+onMounted(async () => {
+  await Promise.all([
+    productsStore.fetchProducts(),
+    bundlesStore.fetchAll(),
+    categoriesStore.fetchAll()
+  ])
+})
 </script>
 
 <style scoped>
@@ -727,8 +796,9 @@ onMounted(() => productsStore.fetchProducts())
 .readonly-val { padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 12px; background: #f8fafc; color: #64748b; font-size: 0.9rem; font-weight: 600; }
 .module-page[data-theme="dark"] .readonly-val { background: #0f172a; border-color: #334155; color: #94a3b8; }
 
-.form-hint { font-size: 0.76rem; color: #64748b; margin-bottom: 0.5rem; }
 .form-error { color: #dc2626; font-size: 0.825rem; background: rgba(239,68,68,0.1); border-radius: 10px; padding: 0.75rem; margin-bottom: 0.5rem; }
+.field-error { color: #ef4444; font-size: 0.78rem; font-weight: 500; margin-top: 0.2rem; }
+.input-error { border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239,68,68,0.1) !important; }
 
 .confirm-text { padding: 1.75rem 2rem; font-size: 0.925rem; color: #475569; line-height: 1.7; text-align: center; }
 .module-page[data-theme="dark"] .confirm-text { color: #cbd5e1; }

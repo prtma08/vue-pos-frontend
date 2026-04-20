@@ -36,9 +36,9 @@
         <h3 class="device-name" :title="d.name">{{ truncateName(d.name, 20) }}</h3>
         <p class="device-location">📍 {{ d.location || 'Lokasi belum diset' }}</p>
         <div class="device-footer">
-          <button class="status-toggle" :class="d.isActive ? 'active' : 'inactive'" @click="store.toggleActive(d.id)">
+          <span class="status-badge-static" :class="d.isActive ? 'active' : 'inactive'">
             {{ d.isActive ? '● Aktif' : '○ Nonaktif' }}
-          </button>
+          </span>
           <span class="device-cashier" v-if="d.currentCashier">👤 {{ d.currentCashier }}</span>
           <span class="device-cashier idle" v-else>Tersedia</span>
         </div>
@@ -66,18 +66,30 @@
                 <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
               </div>
               <div class="form-group">
-                <label class="form-label">Lokasi</label>
-                <input v-model="form.location" class="input-field" type="text" placeholder="contoh: Lantai 1 - Depan"/>
+                <label class="form-label">Lokasi <span class="req">*</span></label>
+                <input 
+                  v-model="form.location" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.location && fieldErrors.location }"
+                  type="text" 
+                  placeholder="contoh: Lantai 1 - Depan"
+                  @blur="touched.location = true"
+                  @input="fieldErrors.location = ''"
+                />
+                <span v-if="touched.location && fieldErrors.location" class="field-error">{{ fieldErrors.location }}</span>
               </div>
               <div class="form-group">
-                <label class="form-label">Status</label>
-                <div class="status-toggle-wrap">
-                  <label class="toggle-label">
-                    <input type="checkbox" v-model="form.isActive" class="toggle-input"/>
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-text">{{ form.isActive ? 'Aktif' : 'Nonaktif' }}</span>
-                  </label>
-                </div>
+                <label class="form-label">Device Name / ID <span class="req">*</span></label>
+                <input 
+                  v-model="form.deviceName" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.deviceName && fieldErrors.deviceName }"
+                  type="text" 
+                  placeholder="contoh: POS-DEVICE-01"
+                  @blur="touched.deviceName = true"
+                  @input="fieldErrors.deviceName = ''"
+                />
+                <span v-if="touched.deviceName && fieldErrors.deviceName" class="field-error">{{ fieldErrors.deviceName }}</span>
               </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
@@ -116,9 +128,9 @@ const store = usePosDevicesStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const showModal = ref(false); const editTarget = ref(null); const deleteTarget = ref(null); const formError = ref('')
-const form = reactive({ name: '', location: '', isActive: true })
-const fieldErrors = reactive({ name: '' })
-const touched = reactive({ name: false })
+const form = reactive({ name: '', location: '', deviceName: '' })
+const fieldErrors = reactive({ name: '', deviceName: '', location: '' })
+const touched = reactive({ name: false, deviceName: false, location: false })
 
 const validationRules = () => ({
   name: {
@@ -128,14 +140,28 @@ const validationRules = () => ({
       rules.maxLength(100, 'Nama Terminal maksimal 100 karakter.'),
       rules.noSpecialChars('Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
     ],
+  },
+  deviceName: {
+    value: form.deviceName.trim(),
+    rules: [
+      rules.required('Device Name wajib diisi.'),
+      rules.maxLength(100, 'Device Name maksimal 100 karakter.')
+    ],
+  },
+  location: {
+    value: form.location.trim(),
+    rules: [
+      rules.required('Lokasi wajib diisi.'),
+      rules.maxLength(255, 'Lokasi maksimal 255 karakter.')
+    ]
   }
 })
 
 const truncateName = (name, maxLen = 20) => name && name.length > maxLen ? name.slice(0, maxLen) + '...' : name
 onMounted(() => store.fetchAll())
-const openModal = (d = null) => { editTarget.value = d; formError.value = ''; Object.assign(fieldErrors, { name: '' }); Object.assign(touched, { name: false }); Object.assign(form, { name: d?.name || '', location: d?.location || '', isActive: d?.isActive !== false }); showModal.value = true }
+const openModal = (d = null) => { editTarget.value = d; formError.value = ''; Object.assign(fieldErrors, { name: '', deviceName: '', location: '' }); Object.assign(touched, { name: false, deviceName: false, location: false }); Object.assign(form, { name: d?.name || '', location: d?.location || '', deviceName: d?.deviceName || '' }); showModal.value = true }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
-const handleSubmit = async () => { formError.value = ''; Object.keys(touched).forEach(k => touched[k] = true); const { valid, errors } = validateAll(validationRules()); Object.assign(fieldErrors, errors); if (!valid) return; const p = { name: form.name.trim(), location: form.location.trim(), isActive: form.isActive }; const r = editTarget.value ? await store.update(editTarget.value.id, p) : await store.add(p); if (r.success) closeModal(); else formError.value = r.message }
+const handleSubmit = async () => { formError.value = ''; Object.keys(touched).forEach(k => touched[k] = true); const { valid, errors } = validateAll(validationRules()); Object.assign(fieldErrors, errors); if (!valid) return; const p = { name: form.name.trim(), location: form.location.trim(), deviceName: form.deviceName.trim() }; const r = editTarget.value ? await store.update(editTarget.value.id, p) : await store.add(p); if (r.success) closeModal(); else formError.value = r.message }
 const handleDelete = async () => { const r = await store.remove(deleteTarget.value.id); if (r.success) deleteTarget.value = null }
 </script>
 
@@ -181,9 +207,9 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 .device-cashier.idle { color: #10b981; }
 .module-page[data-theme="dark"] .device-cashier { color: #cbd5e1; }
 
-.status-toggle { padding: 0.375rem 0.75rem; border-radius: 999px; border: none; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-.status-toggle.active { background: rgba(16,185,129,0.12); color: #059669; }
-.status-toggle.inactive { background: rgba(100,116,139,0.12); color: #64748b; }
+.status-badge-static { display: inline-block; padding: 0.375rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+.status-badge-static.active { background: rgba(16,185,129,0.12); color: #059669; }
+.status-badge-static.inactive { background: rgba(100,116,139,0.12); color: #64748b; }
 
 .action-btn { width: 2rem; height: 2rem; border-radius: 8px; border: 1.5px solid #e2e8f0; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; color: #64748b; transition: all 0.2s; }
 .module-page[data-theme="dark"] .action-btn { background: #334155; border-color: #475569; color: #94a3b8; }

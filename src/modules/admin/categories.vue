@@ -240,6 +240,8 @@ const handleDelete = async () => {
   min-height: 100vh;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   position: relative;
+  --accent: #6366f1;
+  --accent-soft: rgba(99,102,241,0.1);
 }
 
 .module-page::before {

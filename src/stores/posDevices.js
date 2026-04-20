@@ -46,10 +46,8 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.get('/pos-devices', {
+            const res = await apiClient.get('/pos', {
                 params: {
-                    page: params.page ?? pagination.value?.page,
-                    limit: params.limit ?? pagination.value?.limit,
                     search: params.search || undefined,
                 }
             })
@@ -76,7 +74,7 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.post('/pos-devices', payload)
+            const res = await apiClient.post('/pos', payload)
             devices.value.push(res.data.data ?? res.data)
             return { success: true }
         } catch (err) {
@@ -100,7 +98,7 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.put(`/pos-devices/${id}`, payload)
+            const res = await apiClient.put(`/pos/${id}`, payload)
             const idx = devices.value.findIndex(d => d.id === id)
             if (idx !== -1) devices.value[idx] = { ...devices.value[idx], ...(res.data.data ?? res.data) }
             return { success: true }
@@ -125,7 +123,7 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            await apiClient.delete(`/pos-devices/${id}`)
+            await apiClient.delete(`/pos/${id}`)
             const idx = devices.value.findIndex(d => d.id === id)
             if (idx !== -1) devices.value.splice(idx, 1)
             return { success: true }

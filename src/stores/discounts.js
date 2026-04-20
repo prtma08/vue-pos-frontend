@@ -155,19 +155,23 @@ export const useDiscountsStore = defineStore('discounts', () => {
         try {
             const { default: apiClient } = await import('@/api/client')
             // Map frontend field names to Swagger field names
+            const startD = payload.startDate ? (payload.startDate.includes('T') ? new Date(payload.startDate) : new Date(`${payload.startDate}T00:00:00Z`)).toISOString() : undefined;
+            const endD = payload.endDate ? (payload.endDate.includes('T') ? new Date(payload.endDate) : new Date(`${payload.endDate}T23:59:59.999Z`)).toISOString() : undefined;
+
             const body = {
                 name: payload.name,
                 description: payload.description || undefined,
                 type: payload.type,
                 value: payload.value,
-                startDate: payload.startDate || undefined,
-                endDate: payload.endDate,
+                startDate: startD,
+                endDate: endD,
                 isActive: payload.isActive ?? true,
                 isTransactionLevel: payload.isTransactionLevel ?? false,
+                isMemberLevel: payload.isMemberLevel ?? false,
                 // Map appliedProductIds → productIds (Swagger field name)
-                productIds: !payload.isTransactionLevel
+                productIds: !payload.isTransactionLevel && !payload.isMemberLevel
                     ? (payload.productIds || payload.appliedProductIds || [])
-                    : undefined,
+                    : [],
             }
             const res = await apiClient.post('/discounts', body)
             discounts.value.push(res.data.data ?? res.data)
@@ -195,18 +199,22 @@ export const useDiscountsStore = defineStore('discounts', () => {
         try {
             const { default: apiClient } = await import('@/api/client')
             // Map frontend field names to Swagger field names
+            const startD = payload.startDate ? (payload.startDate.includes('T') ? new Date(payload.startDate) : new Date(`${payload.startDate}T00:00:00Z`)).toISOString() : undefined;
+            const endD = payload.endDate ? (payload.endDate.includes('T') ? new Date(payload.endDate) : new Date(`${payload.endDate}T23:59:59.999Z`)).toISOString() : undefined;
+
             const body = {
                 name: payload.name,
                 description: payload.description,
                 type: payload.type,
                 value: payload.value,
-                startDate: payload.startDate,
-                endDate: payload.endDate,
+                startDate: startD,
+                endDate: endD,
                 isActive: payload.isActive,
                 isTransactionLevel: payload.isTransactionLevel,
-                productIds: !payload.isTransactionLevel
+                isMemberLevel: payload.isMemberLevel ?? false,
+                productIds: !payload.isTransactionLevel && !payload.isMemberLevel
                     ? (payload.productIds || payload.appliedProductIds || [])
-                    : undefined,
+                    : [],
             }
             const res = await apiClient.put(`/discounts/${id}`, body)
             const idx = discounts.value.findIndex(d => d.id === id)

@@ -289,6 +289,8 @@ const handleDelete = async () => {
     linear-gradient(180deg, #fafafa 0%, #f8fafc 100%);
   min-height: 100vh;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --accent: #6366f1;
+  --accent-soft: rgba(99,102,241,0.1);
 }
 
 .module-page[data-theme="dark"] {

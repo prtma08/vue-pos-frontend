@@ -89,6 +89,10 @@
                 />
                 <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
               </div>
+              <div class="form-group">
+                <label class="form-label">Deskripsi</label>
+                <textarea v-model="form.description" class="input-field" placeholder="contoh: Diskon cuci gudang" rows="2"></textarea>
+              </div>
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Jenis <span class="req">*</span></label>
@@ -235,7 +239,7 @@ const editTarget  = ref(null)
 const deleteTarget = ref(null)
 const formError   = ref('')
 const form = reactive({
-  name: '', type: 'PERCENTAGE', value: 0,
+  name: '', description: '', type: 'PERCENTAGE', value: 0,
   level: 'transaction',
   appliedProductIds: [],
   startDate: '', endDate: '', isActive: true
@@ -299,7 +303,11 @@ const getProductSku  = (id) => productsStore.products.find(p => p.id === id)?.sk
 const addTargetProduct    = (id) => { if (id && !form.appliedProductIds.includes(id)) form.appliedProductIds.push(id) }
 const removeTargetProduct = (id) => { form.appliedProductIds = form.appliedProductIds.filter(x => x !== id) }
 
-const formatDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+const formatDate = (d) => {
+  if (!d) return '—'
+  const dateObj = new Date(d.includes('T') ? d : d + 'T00:00:00')
+  return isNaN(dateObj.getTime()) ? '—' : dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 const truncateName = (name, maxLen = 20) => name && name.length > maxLen ? name.slice(0, maxLen) + '...' : name
 
 const openModal = (d = null) => {
@@ -307,12 +315,13 @@ const openModal = (d = null) => {
   formError.value  = ''
   Object.assign(form, {
     name:    d?.name    || '',
+    description: d?.description || '',
     type:    d?.type    || 'PERCENTAGE',
     value:   d?.value   || 0,
     level:   d ? (d.isTransactionLevel ? 'transaction' : d.isMemberLevel ? 'member' : 'product') : 'transaction',
-    appliedProductIds: d?.appliedProductIds ? [...d.appliedProductIds] : [],
-    startDate: d?.startDate || '',
-    endDate:   d?.endDate   || '',
+    appliedProductIds: d?.appliedProductIds ? [...d.appliedProductIds] : (d?.productIds ? [...d.productIds] : []),
+    startDate: d?.startDate ? d.startDate.split('T')[0] : '',
+    endDate:   d?.endDate   ? d.endDate.split('T')[0] : '',
     isActive:  d?.isActive  !== false,
   })
   Object.assign(fieldErrors, { name: '', value: '', startDate: '', endDate: '' })
@@ -352,7 +361,11 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 
 <style scoped>
 
-.module-page { padding: 2.5rem; max-width: 1200px; margin: 0 auto; background: linear-gradient(135deg, #f8fafc, #f1f5f9); min-height: 100vh; font-family: 'Inter', sans-serif; }
+.module-page { 
+  padding: 2.5rem; max-width: 1200px; margin: 0 auto; background: linear-gradient(135deg, #f8fafc, #f1f5f9); min-height: 100vh; font-family: 'Inter', sans-serif; 
+  --accent: #6366f1;
+  --accent-soft: rgba(99,102,241,0.1);
+}
 .module-page[data-theme="dark"] { background: linear-gradient(135deg, #0f172a, #1e293b); }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem; }
 .page-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 2rem; font-weight: 700; background: linear-gradient(135deg, #1e293b, #475569); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
