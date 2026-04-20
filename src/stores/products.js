@@ -267,6 +267,32 @@ export const useProductsStore = defineStore('products', () => {
     } finally { loading.value = false }
   }
 
+  // ── deleteMultipleProducts ─────────────────────────────────────────────────
+  const deleteMultipleProducts = async (productIds) => {
+    loading.value = true
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 600))
+      productIds.forEach(id => {
+        const idx = products.value.findIndex(p => p.id === id)
+        const mockIdx = MOCK_PRODUCTS.findIndex(p => p.id === id)
+        if (idx !== -1) products.value.splice(idx, 1)
+        if (mockIdx !== -1) MOCK_PRODUCTS.splice(mockIdx, 1)
+      })
+      loading.value = false
+      return { success: true }
+    }
+    try {
+      await Promise.all(productIds.map(id => apiClient.delete(`/products/${id}`)))
+      products.value = products.value.filter(p => !productIds.includes(p.id))
+      return { success: true }
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem saat menghapus banyak produk'
+      return { success: false, message: errMsg }
+    } finally {
+      loading.value = false
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   //  HPP WEIGHTED AVERAGE — PURCHASE STOCK
   // ══════════════════════════════════════════════════════════════════════════
@@ -461,11 +487,26 @@ export const useProductsStore = defineStore('products', () => {
     }
   }
 
-  // ── getPriceHistory ─────────────────────────────────────────────────────────
-  const getPriceHistory = (productId) => {
-    return productPrices.value
-      .filter(p => p.productId === productId)
-      .sort((a, b) => new Date(b.effectiveDate) - new Date(a.effectiveDate))
+  // ── fetchPriceHistory ───────────────────────────────────────────────────────
+  const fetchPriceHistory = async (productId) => {
+    loading.value = true
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 300))
+      loading.value = false
+      return productPrices.value
+        .filter(p => p.productId === productId)
+        .sort((a, b) => new Date(b.effectiveDate) - new Date(a.effectiveDate))
+    }
+    try {
+      const response = await apiClient.get(`/products/${productId}/price-histories`)
+      // Backend mengembalikan daftar histori. Kita kembalikan langsung ke tabel UI
+      return response.data.data || []
+    } catch (err) {
+      console.error(err)
+      return []
+    } finally {
+      loading.value = false
+    }
   }
 
   // ── getActivePrice ──────────────────────────────────────────────────────────
@@ -566,10 +607,10 @@ export const useProductsStore = defineStore('products', () => {
     filteredProducts, lowStockProducts,
 
     // CRUD
-    fetchProducts, fetchCategories, addProduct, updateProduct, deleteProduct,
+    fetchProducts, fetchCategories, addProduct, updateProduct, deleteProduct, deleteMultipleProducts,
 
     // Accounting — HPP & Price History
-    purchaseStock, updateSellingPrice, getPriceHistory, getActivePrice,
+    purchaseStock, updateSellingPrice, fetchPriceHistory, getActivePrice,
 
     // Stock
     deductStock,

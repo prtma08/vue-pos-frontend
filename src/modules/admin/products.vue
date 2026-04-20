@@ -14,12 +14,20 @@
         <h1 class="page-title">Manajemen Produk</h1>
         <p class="page-subtitle">{{ store.products.length }} produk terdaftar dalam katalog Anda</p>
       </div>
-      <button class="btn-primary" @click="openModal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        Tambah Produk
-      </button>
+      <div class="header-actions" style="display: flex; gap: 1rem; align-items: center;">
+        <button v-if="selectedProductIds.length > 0" class="btn-danger" @click="confirmDeleteMultiple()" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.2rem; border-radius: var(--radius-sm); border: none; font-weight: 600; cursor: pointer; color: white;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/>
+          </svg>
+          Hapus Terpilih ({{ selectedProductIds.length }})
+        </button>
+        <button class="btn-primary" @click="openModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Tambah Produk
+        </button>
+      </div>
     </header>
 
     <!-- ── Toolbar ───────────────────────────────────────────────────────── -->
@@ -60,6 +68,9 @@
       <table v-else class="data-table">
         <thead>
           <tr>
+            <th class="th-checkbox" style="width: 40px; text-align: center;">
+              <input type="checkbox" v-model="selectAllProducts" />
+            </th>
             <th class="th-product">Produk</th>
             <th class="th-sku">SKU</th>
             <th class="th-category">Kategori</th>
@@ -74,7 +85,7 @@
         </thead>
         <tbody>
           <tr v-if="store.filteredProducts.length === 0">
-            <td colspan="10" class="empty-row">
+            <td colspan="11" class="empty-row">
               <div class="empty-visual">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -85,6 +96,9 @@
             </td>
           </tr>
           <tr v-for="product in store.filteredProducts" :key="product.id" class="table-row">
+            <td style="text-align: center;">
+              <input type="checkbox" :value="product.id" v-model="selectedProductIds" />
+            </td>
             <td>
               <div class="cell-product">
                 <div class="product-avatar" :style="(!product.images || product.images.length === 0) ? { background: getProductColor(product.name) } : { background: 'transparent' }">
@@ -180,7 +194,6 @@
                     :class="{ 'input-error': touched.name && fieldErrors.name }"
                     type="text" 
                     placeholder="Contoh: Nasi Goreng Spesial" 
-                    maxlength="50"
                     @blur="touched.name = true"
                     @input="fieldErrors.name = ''"
                   />
@@ -194,7 +207,6 @@
                     :class="{ 'input-error': touched.sku && fieldErrors.sku }"
                     type="text" 
                     placeholder="MKN-001"
-                    maxlength="100"
                     @blur="touched.sku = true"
                     @input="fieldErrors.sku = ''"
                   />
@@ -349,6 +361,46 @@
       </transition>
     </Teleport>
 
+    <!-- ── Modal: Delete Multiple ────────────────────────────────────────── -->
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div v-if="deleteMultipleTarget" class="modal-overlay" @click.self="deleteMultipleTarget = false">
+          <div class="modal-box modal-sm modal-danger">
+            <div class="modal-header modal-header-danger">
+              <div class="danger-icon-wrapper">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div class="header-text">
+                <h2 class="modal-title danger-title">Hapus Banyak Produk?</h2>
+                <p class="modal-subtitle">Tindakan ini tidak dapat dibatalkan</p>
+              </div>
+              <button class="modal-close" @click="deleteMultipleTarget = false">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div class="modal-body-danger">
+              <p class="confirm-text">
+                Anda akan menghapus <strong>{{ selectedProductIds.length }}</strong> produk secara permanen dari sistem.
+              </p>
+              <p v-if="deleteError" class="field-error" style="margin-top: 1rem; text-align: center;">{{ deleteError }}</p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-ghost" @click="deleteMultipleTarget = false">Batal</button>
+              <button class="btn btn-danger" @click="handleBulkDelete" :disabled="store.loading">
+                <span v-if="store.loading" class="spinner-sm"></span>
+                Ya, Hapus Semua
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
+
     <!-- ── Modal: Price History ──────────────────────────────────────────── -->
     <Teleport to="body">
       <transition name="modal-fade">
@@ -406,6 +458,17 @@ const deleteTarget = ref(null)
 const formError = ref('')
 const priceHistoryTarget = ref(null)
 const priceHistoryList = ref([])
+
+const selectedProductIds = ref([])
+const deleteMultipleTarget = ref(false)
+const selectAllProducts = computed({
+  get() {
+    return store.filteredProducts.length > 0 && selectedProductIds.value.length === store.filteredProducts.length
+  },
+  set(val) {
+    selectedProductIds.value = val ? store.filteredProducts.map(p => p.id) : []
+  }
+})
 
 const form = reactive({ name: '', sku: '', categoryId: '', price: null, unit: '', lowStockThreshold: 10, imageFile: null, imagePreview: false })
 const fieldErrors = reactive({ name: '', sku: '', categoryId: '', price: '', unit: '', imageFile: '', lowStockThreshold: '' })
@@ -553,13 +616,31 @@ const confirmDelete = (product) => {
   deleteTarget.value = product
   deleteError.value = ''
 }
+
+const confirmDeleteMultiple = () => {
+  deleteMultipleTarget.value = true
+  deleteError.value = ''
+}
 const handleDelete = async () => {
   deleteError.value = ''
   const result = await store.deleteProduct(deleteTarget.value.id)
   if (result.success) {
     deleteTarget.value = null
+    // Remove from selected list if deleted
+    selectedProductIds.value = selectedProductIds.value.filter(id => id !== deleteTarget.value.id)
   } else {
     deleteError.value = result.message || 'Gagal menghapus produk.'
+  }
+}
+
+const handleBulkDelete = async () => {
+  deleteError.value = ''
+  const result = await store.deleteMultipleProducts(selectedProductIds.value)
+  if (result.success) {
+    deleteMultipleTarget.value = false
+    selectedProductIds.value = []
+  } else {
+    deleteError.value = result.message || 'Gagal menghapus beberapa produk.'
   }
 }
 
@@ -574,9 +655,10 @@ const fmtDate = (iso) => {
   return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-const openPriceHistory = (product) => {
+const openPriceHistory = async (product) => {
   priceHistoryTarget.value = product
-  priceHistoryList.value = store.getPriceHistory(product.id)
+  priceHistoryList.value = []
+  priceHistoryList.value = await store.fetchPriceHistory(product.id)
 }
 
 // C7: Margin classification helper
