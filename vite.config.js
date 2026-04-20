@@ -74,6 +74,36 @@ export default defineConfig({
         secure: true,
         cookieDomainRewrite: 'localhost',
       },
+      '/bundles': {
+        target: BACKEND_URL,
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+      },
+      '/stock-batches': {
+        target: BACKEND_URL,
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+      },
+      '/reports': {
+        target: BACKEND_URL,
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+      },
+      '/notifications': {
+        target: BACKEND_URL,
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+      },
+      '/price-lists': {
+        target: BACKEND_URL,
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+      },
     },
   },
   build: {

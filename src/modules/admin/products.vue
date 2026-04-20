@@ -419,10 +419,10 @@
             </div>
             <div class="history-list">
               <div v-if="priceHistoryList.length === 0" class="history-empty">Belum ada riwayat perubahan harga.</div>
-              <div v-for="h in priceHistoryList" :key="h.id" class="history-item" :class="{ active: h.is_active }">
+              <div v-for="h in priceHistoryList" :key="h.id" class="history-item" :class="{ active: h.isActive }">
                 <div class="history-price">
                   <span class="h-price">Rp {{ fmt(h.price) }}</span>
-                  <span v-if="h.is_active" class="h-active-badge">Aktif</span>
+                  <span v-if="h.isActive" class="h-active-badge">Aktif</span>
                 </div>
                 <div class="history-meta">
                   <span v-if="h.previousPrice" class="h-prev">sebelumnya: Rp {{ fmt(h.previousPrice) }}</span>
@@ -688,7 +688,7 @@ const plForm          = reactive({ name: '', description: '' })
 const showAddItemModal  = ref(false)
 const addItemTargetPl   = ref(null)
 const addItemFormError  = ref('')
-const addItemForm       = reactive({ productId: '', eventPrice: 0 })
+const addItemForm       = reactive({ productId: '', newPrice: 0 })
 
 // Products not yet in the target pricelist
 const availableProductsForPl = computed(() => {
@@ -715,7 +715,7 @@ const handlePlSubmit = async () => {
 }
 
 const handleTogglePricelist = async (pl) => {
-  if (pl.is_active) {
+  if (pl.isActive) {
     if (confirm('Nonaktifkan event ini?')) await pricelistStore.deactivateAll()
   } else {
     if (confirm(`Aktifkan "${pl.name}"? Event lain yang sedang aktif akan dinonaktifkan.`)) {
@@ -738,7 +738,7 @@ const handleDeletePricelist = async (pl) => {
 const openAddItemModal = (pl) => {
   addItemTargetPl.value = pl
   addItemFormError.value = ''
-  Object.assign(addItemForm, { productId: '', eventPrice: 0 })
+  Object.assign(addItemForm, { productId: '', newPrice: 0 })
   showAddItemModal.value = true
 }
 
@@ -746,7 +746,7 @@ const onAddItemProductSelect = (product) => {
   if (!product) return
   addItemForm.productId = product.id
   // Pre-fill with normal selling price as starting point
-  addItemForm.eventPrice = product.sellingPrice ?? product.price ?? 0
+  addItemForm.newPrice = product.sellingPrice ?? product.price ?? 0
 }
 
 const handleAddPlItem = async () => {
@@ -756,7 +756,7 @@ const handleAddPlItem = async () => {
   const result = await pricelistStore.addPricelistItem(
     addItemTargetPl.value.id,
     product,
-    addItemForm.eventPrice
+    addItemForm.newPrice
   )
   if (result.success) { showAddItemModal.value = false }
   else { addItemFormError.value = result.message }

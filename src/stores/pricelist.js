@@ -9,25 +9,25 @@ let MOCK_PRICELISTS = [
         id: 'pl-1',
         name: 'Promo Lebaran',
         description: 'Harga spesial Lebaran 2026',
-        is_active: true,
+        isActive: true,
         createdAt: '2026-04-01T00:00:00.000Z',
     },
     {
         id: 'pl-2',
         name: 'Flash Sale Akhir Bulan',
         description: 'Diskon produk pilihan akhir bulan',
-        is_active: false,
+        isActive: false,
         createdAt: '2026-03-25T00:00:00.000Z',
     },
 ]
 
-// pricelistItems: { id, pricelistId, productId, productName, productSku, eventPrice }
+// pricelistItems: { id, pricelistId, productId, productName, productSku, newPrice }
 let MOCK_PRICELIST_ITEMS = [
-    { id: 'pli-1', pricelistId: 'pl-1', productId: 'prod-1', productName: 'Nasi Goreng Spesial', productSku: 'MKN-001', eventPrice: 20000 },
-    { id: 'pli-2', pricelistId: 'pl-1', productId: 'prod-4', productName: 'Es Teh Manis', productSku: 'MNM-001', eventPrice: 4000 },
-    { id: 'pli-3', pricelistId: 'pl-1', productId: 'prod-7', productName: 'Kentang Goreng', productSku: 'SNK-001', eventPrice: 10000 },
-    { id: 'pli-4', pricelistId: 'pl-2', productId: 'prod-2', productName: 'Mie Ayam Bakso', productSku: 'MKN-002', eventPrice: 15000 },
-    { id: 'pli-5', pricelistId: 'pl-2', productId: 'prod-5', productName: 'Jus Alpukat', productSku: 'MNM-002', eventPrice: 12000 },
+    { id: 'pli-1', pricelistId: 'pl-1', productId: 'prod-1', productName: 'Nasi Goreng Spesial', productSku: 'MKN-001', newPrice: 20000 },
+    { id: 'pli-2', pricelistId: 'pl-1', productId: 'prod-4', productName: 'Es Teh Manis', productSku: 'MNM-001', newPrice: 4000 },
+    { id: 'pli-3', pricelistId: 'pl-1', productId: 'prod-7', productName: 'Kentang Goreng', productSku: 'SNK-001', newPrice: 10000 },
+    { id: 'pli-4', pricelistId: 'pl-2', productId: 'prod-2', productName: 'Mie Ayam Bakso', productSku: 'MKN-002', newPrice: 15000 },
+    { id: 'pli-5', pricelistId: 'pl-2', productId: 'prod-5', productName: 'Jus Alpukat', productSku: 'MNM-002', newPrice: 12000 },
 ]
 
 let nextPlId = 3
@@ -45,22 +45,22 @@ export const usePricelistStore = defineStore('pricelist', () => {
         id: pl?.ID ?? pl?.id ?? '',
         name: pl?.Name ?? pl?.name ?? '',
         description: pl?.Description ?? pl?.description ?? '',
-        is_active: pl?.IsActive ?? pl?.is_active ?? false,
+        isActive: pl?.IsActive ?? pl?.isActive ?? false,
         createdAt: pl?.CreatedAt ?? pl?.createdAt ?? new Date().toISOString()
     })
 
-    const normalizePricelistItem = (pli) => ({
+    const normalizePricelistItem = (pli, plId) => ({
         id: pli?.ID ?? pli?.id ?? '',
-        pricelistId: pli?.PricelistId ?? pli?.PricelistID ?? pli?.pricelistId ?? '',
+        pricelistId: pli?.PricelistId ?? pli?.PricelistID ?? pli?.pricelistId ?? plId ?? '',
         productId: pli?.ProductId ?? pli?.ProductID ?? pli?.productId ?? '',
         productName: pli?.ProductName ?? pli?.productName ?? '',
         productSku: pli?.ProductSku ?? pli?.ProductSKU ?? pli?.productSku ?? '',
-        eventPrice: pli?.EventPrice ?? pli?.eventPrice ?? 0
+        newPrice: pli?.NewPrice ?? pli?.newPrice ?? 0
     })
 
     // ── Computed ──────────────────────────────────────────────────────────────
     const activePricelist = computed(() =>
-        pricelists.value.find(pl => pl.is_active) ?? null
+        pricelists.value.find(pl => pl.isActive) ?? null
     )
 
     const hasActiveEvent = computed(() => activePricelist.value !== null)
@@ -74,7 +74,7 @@ export const usePricelistStore = defineStore('pricelist', () => {
         const item = pricelistItems.value.find(
             i => i.pricelistId === activePricelist.value.id && i.productId === productId
         )
-        return item ? item.eventPrice : null
+        return item ? item.newPrice : null
     }
 
     /**
@@ -108,18 +108,27 @@ export const usePricelistStore = defineStore('pricelist', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const [plRes, pliRes] = await Promise.all([
-                apiClient.get('/pricelists').catch(() => ({ data: [] })),
-                apiClient.get('/pricelist-items').catch(() => ({ data: [] })),
-            ])
+            const plRes = await apiClient.get('/price-lists').catch(() => ({ data: [] }))
             const rawPls = plRes.data?.data ?? plRes.data ?? []
-            const rawPlis = pliRes.data?.data ?? pliRes.data ?? []
-            
+
             pricelists.value = Array.isArray(rawPls) ? rawPls.map(normalizePricelist) : []
-            pricelistItems.value = Array.isArray(rawPlis) ? rawPlis.map(normalizePricelistItem) : []
+
+            const newItems = []
+            if (Array.isArray(rawPls)) {
+                rawPls.forEach(pl => {
+                    const plId = pl?.ID ?? pl?.id
+                    if (Array.isArray(pl.items)) {
+                        pl.items.forEach(item => {
+                            newItems.push(normalizePricelistItem(item, plId))
+                        })
+                    }
+                })
+            }
+            pricelistItems.value = newItems
             return { success: true }
         } catch (err) {
-            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            console.error(err);
+            const errMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '') || err.response?.statusText || err.message || 'Terjadi kesalahan sistem'
             const validationErrors = err.response?.data?.errors || null
             error.value = errMsg
             return { success: false, message: errMsg, errors: validationErrors }
@@ -133,18 +142,19 @@ export const usePricelistStore = defineStore('pricelist', () => {
         loading.value = true
         if (USE_MOCK) {
             await new Promise(r => setTimeout(r, 150))
-            pricelists.value.forEach(pl => { pl.is_active = pl.id === id })
-            MOCK_PRICELISTS.forEach(pl => { pl.is_active = pl.id === id })
+            pricelists.value.forEach(pl => { pl.isActive = pl.id === id })
+            MOCK_PRICELISTS.forEach(pl => { pl.isActive = pl.id === id })
             loading.value = false
             return { success: true }
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            await apiClient.patch(`/pricelists/${id}/activate`)
-            pricelists.value.forEach(pl => { pl.is_active = pl.id === id })
+            await apiClient.put(`/price-lists/${id}/activate`)
+            pricelists.value.forEach(pl => { pl.isActive = pl.id === id })
             return { success: true }
         } catch (err) {
-            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            console.error(err);
+            const errMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '') || err.response?.statusText || err.message || 'Terjadi kesalahan sistem'
             const validationErrors = err.response?.data?.errors || null
             return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
@@ -157,18 +167,19 @@ export const usePricelistStore = defineStore('pricelist', () => {
         loading.value = true
         if (USE_MOCK) {
             await new Promise(r => setTimeout(r, 100))
-            pricelists.value.forEach(pl => { pl.is_active = false })
-            MOCK_PRICELISTS.forEach(pl => { pl.is_active = false })
+            pricelists.value.forEach(pl => { pl.isActive = false })
+            MOCK_PRICELISTS.forEach(pl => { pl.isActive = false })
             loading.value = false
             return { success: true }
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            await apiClient.patch('/pricelists/deactivate-all')
-            pricelists.value.forEach(pl => { pl.is_active = false })
+            await apiClient.put('/price-lists/default')
+            pricelists.value.forEach(pl => { pl.isActive = false })
             return { success: true }
         } catch (err) {
-            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            console.error(err);
+            const errMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '') || err.response?.statusText || err.message || 'Terjadi kesalahan sistem'
             const validationErrors = err.response?.data?.errors || null
             return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
@@ -184,22 +195,25 @@ export const usePricelistStore = defineStore('pricelist', () => {
                 id: `pl-${nextPlId++}`,
                 name: payload.name,
                 description: payload.description || '',
-                is_active: false,
+                isActive: payload.isActive ?? false,
                 createdAt: new Date().toISOString(),
             }
             MOCK_PRICELISTS.push(newPl)
             pricelists.value.push({ ...newPl })
+            // Items are empty on mock add
             loading.value = false
             return { success: true, data: newPl }
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.post('/pricelists', payload)
+            const finalPayload = { ...payload, isActive: payload.isActive ?? false, items: payload.items ?? [] }
+            const res = await apiClient.post('/price-lists', finalPayload)
             const created = res.data?.data ?? res.data
             pricelists.value.push(normalizePricelist(created))
             return { success: true, data: created }
         } catch (err) {
-            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            console.error(err);
+            const errMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '') || err.response?.statusText || err.message || 'Terjadi kesalahan sistem'
             const validationErrors = err.response?.data?.errors || null
             return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
@@ -218,12 +232,22 @@ export const usePricelistStore = defineStore('pricelist', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            await apiClient.put(`/pricelists/${id}`, payload)
+            // Get full items array from state to send via PUT
+            let items = payload.items
+            if (!items) {
+                // If not provided in payload, gather from state
+                items = pricelistItems.value
+                    .filter(i => i.pricelistId === id)
+                    .map(i => ({ productId: i.productId, newPrice: i.newPrice }))
+            }
+            const finalPayload = { ...payload, isActive: payload.isActive ?? false, items }
+            await apiClient.put(`/price-lists/${id}`, finalPayload)
             const idx = pricelists.value.findIndex(pl => pl.id === id)
             if (idx !== -1) pricelists.value[idx] = { ...pricelists.value[idx], ...payload }
             return { success: true }
         } catch (err) {
-            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            console.error(err);
+            const errMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '') || err.response?.statusText || err.message || 'Terjadi kesalahan sistem'
             const validationErrors = err.response?.data?.errors || null
             return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
@@ -245,13 +269,14 @@ export const usePricelistStore = defineStore('pricelist', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            await apiClient.delete(`/pricelists/${id}`)
+            await apiClient.delete(`/price-lists/${id}`)
             const idx = pricelists.value.findIndex(pl => pl.id === id)
             if (idx !== -1) pricelists.value.splice(idx, 1)
             pricelistItems.value = pricelistItems.value.filter(i => i.pricelistId !== id)
             return { success: true }
         } catch (err) {
-            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            console.error(err);
+            const errMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '') || err.response?.statusText || err.message || 'Terjadi kesalahan sistem'
             const validationErrors = err.response?.data?.errors || null
             return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
@@ -260,12 +285,33 @@ export const usePricelistStore = defineStore('pricelist', () => {
     // ── PricelistItem CRUD ────────────────────────────────────────────────────
 
     /**
+     * Helper to sync items of a single pricelist to backend using PUT /price-lists/{id}
+     */
+    const syncPricelistItemsToBackend = async (pricelistId, newItemsArrayRaw) => {
+        const pl = pricelists.value.find(p => p.id === pricelistId)
+        if (!pl) return { success: false, message: 'Pricelist tidak ditemukan' }
+
+        const { default: apiClient } = await import('@/api/client')
+        const itemsPayload = newItemsArrayRaw.map(i => ({ productId: i.productId, newPrice: i.newPrice }))
+
+        const payload = {
+            name: pl.name,
+            description: pl.description,
+            isActive: pl.isActive,
+            items: itemsPayload
+        }
+
+        const res = await apiClient.put(`/price-lists/${pricelistId}`, payload)
+        return res
+    }
+
+    /**
      * Add a product to a pricelist.
      * @param {string} pricelistId
      * @param {Object} product      — { id, name, sku }
-     * @param {number} eventPrice
+     * @param {number} newPrice
      */
-    const addPricelistItem = async (pricelistId, product, eventPrice) => {
+    const addPricelistItem = async (pricelistId, product, newPrice) => {
         // Check duplicate
         const exists = pricelistItems.value.find(
             i => i.pricelistId === pricelistId && i.productId === product.id
@@ -281,7 +327,7 @@ export const usePricelistStore = defineStore('pricelist', () => {
                 productId: product.id,
                 productName: product.name,
                 productSku: product.sku || '',
-                eventPrice,
+                newPrice,
             }
             MOCK_PRICELIST_ITEMS.push(newItem)
             pricelistItems.value.push({ ...newItem })
@@ -289,13 +335,27 @@ export const usePricelistStore = defineStore('pricelist', () => {
             return { success: true, data: newItem }
         }
         try {
-            const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.post('/pricelist-items', { pricelistId, productId: product.id, eventPrice })
-            const created = res.data?.data ?? res.data
-            pricelistItems.value.push(normalizePricelistItem(created))
-            return { success: true, data: created }
+            // Need to build the entire new properties array
+            const currentItems = pricelistItems.value.filter(i => i.pricelistId === pricelistId)
+            const newItem = {
+                id: `TEMP-${Date.now()}`,
+                pricelistId,
+                productId: product.id,
+                productName: product.name,
+                productSku: product.sku || '',
+                newPrice
+            }
+
+            const nextItemsArray = [...currentItems, newItem]
+            await syncPricelistItemsToBackend(pricelistId, nextItemsArray)
+
+            // Re-fetch all to get authoritative IDs from backend or just optimistic update
+            // Since there's no unique ID returned just append
+            pricelistItems.value.push(newItem)
+            return { success: true, data: newItem }
         } catch (err) {
-            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            console.error(err);
+            const errMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '') || err.response?.statusText || err.message || 'Terjadi kesalahan sistem'
             const validationErrors = err.response?.data?.errors || null
             return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
@@ -304,25 +364,33 @@ export const usePricelistStore = defineStore('pricelist', () => {
     /**
      * Update event price for a pricelist item.
      */
-    const updatePricelistItem = async (itemId, eventPrice) => {
+    const updatePricelistItem = async (itemId, newPrice) => {
         loading.value = true
         if (USE_MOCK) {
             await new Promise(r => setTimeout(r, 100))
             const idx = pricelistItems.value.findIndex(i => i.id === itemId)
             const mockIdx = MOCK_PRICELIST_ITEMS.findIndex(i => i.id === itemId)
-            if (idx !== -1) pricelistItems.value[idx].eventPrice = eventPrice
-            if (mockIdx !== -1) MOCK_PRICELIST_ITEMS[mockIdx].eventPrice = eventPrice
+            if (idx !== -1) pricelistItems.value[idx].newPrice = newPrice
+            if (mockIdx !== -1) MOCK_PRICELIST_ITEMS[mockIdx].newPrice = newPrice
             loading.value = false
             return { success: true }
         }
         try {
-            const { default: apiClient } = await import('@/api/client')
-            await apiClient.put(`/pricelist-items/${itemId}`, { eventPrice })
+            const targetItem = pricelistItems.value.find(i => i.id === itemId)
+            if (!targetItem) throw new Error("Item not found")
+            const pricelistId = targetItem.pricelistId
+
+            const currentItems = pricelistItems.value.filter(i => i.pricelistId === pricelistId)
+            const nextItemsArray = currentItems.map(i => i.id === itemId ? { ...i, newPrice } : i)
+
+            await syncPricelistItemsToBackend(pricelistId, nextItemsArray)
+
             const idx = pricelistItems.value.findIndex(i => i.id === itemId)
-            if (idx !== -1) pricelistItems.value[idx].eventPrice = eventPrice
+            if (idx !== -1) pricelistItems.value[idx].newPrice = newPrice
             return { success: true }
         } catch (err) {
-            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            console.error(err);
+            const errMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '') || err.response?.statusText || err.message || 'Terjadi kesalahan sistem'
             const validationErrors = err.response?.data?.errors || null
             return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }
@@ -340,13 +408,20 @@ export const usePricelistStore = defineStore('pricelist', () => {
             return { success: true }
         }
         try {
-            const { default: apiClient } = await import('@/api/client')
-            await apiClient.delete(`/pricelist-items/${itemId}`)
+            const targetItem = pricelistItems.value.find(i => i.id === itemId)
+            if (!targetItem) throw new Error("Item not found")
+            const pricelistId = targetItem.pricelistId
+
+            const nextItemsArray = pricelistItems.value.filter(i => i.pricelistId === pricelistId && i.id !== itemId)
+
+            await syncPricelistItemsToBackend(pricelistId, nextItemsArray)
+
             const idx = pricelistItems.value.findIndex(i => i.id === itemId)
             if (idx !== -1) pricelistItems.value.splice(idx, 1)
             return { success: true }
         } catch (err) {
-            const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+            console.error(err);
+            const errMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '') || err.response?.statusText || err.message || 'Terjadi kesalahan sistem'
             const validationErrors = err.response?.data?.errors || null
             return { success: false, message: errMsg, errors: validationErrors }
         } finally { loading.value = false }

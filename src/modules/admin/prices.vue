@@ -74,12 +74,12 @@
             </td>
             <td>
               <div class="toggle-cell">
-                <label class="toggle-switch" :title="pl.is_active ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'">
-                  <input type="checkbox" :checked="pl.is_active" @change="handleTogglePricelist(pl)" />
+                <label class="toggle-switch" :title="pl.isActive ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'">
+                  <input type="checkbox" :checked="pl.isActive" @change="handleTogglePricelist(pl)" />
                   <span class="toggle-slider"></span>
                 </label>
-                <span class="status-badge" :class="pl.is_active ? 'badge-success' : 'badge-inactive'">
-                  {{ pl.is_active ? '● Aktif' : '○ Nonaktif' }}
+                <span class="status-badge" :class="pl.isActive ? 'badge-success' : 'badge-inactive'">
+                  {{ pl.isActive ? '● Aktif' : '○ Nonaktif' }}
                 </span>
               </div>
             </td>
@@ -156,20 +156,20 @@
                           <span class="rp-prefix">Rp</span>
                           <input
                             type="text"
-                            :value="fmt(pli.eventPrice)"
+                            :value="fmt(pli.newPrice)"
                             class="event-price-input"
-                            :class="{ 'input-loss': pli.eventPrice < getProductHpp(pli.productId) }"
-                            @focus="$event.target.value = pli.eventPrice || ''"
-                            @blur="$event.target.value = fmt(pli.eventPrice)"
+                            :class="{ 'input-loss': pli.newPrice < getProductHpp(pli.productId) }"
+                            @focus="$event.target.value = pli.newPrice || ''"
+                            @blur="$event.target.value = fmt(pli.newPrice)"
                             @change="handleUpdateItemPrice(pli, $event.target.value)"
                           />
                         </div>
                       </td>
                       <td>
-                        <span v-if="pli.eventPrice < getProductHpp(pli.productId)" class="loss-badge">
+                        <span v-if="pli.newPrice < getProductHpp(pli.productId)" class="loss-badge">
                           ⚠️ Di bawah HPP!
                         </span>
-                        <span v-else-if="pli.eventPrice < getProductNormalPrice(pli.productId)" class="discount-badge">
+                        <span v-else-if="pli.newPrice < getProductNormalPrice(pli.productId)" class="discount-badge">
                           ↓ Diskon {{ discountPct(pli) }}%
                         </span>
                         <span v-else class="neutral-badge">= Harga Normal</span>
@@ -281,9 +281,9 @@
                   <span class="prefix">Rp</span>
                   <input
                     class="input-field"
-                    :value="addItemForm.eventPrice > 0 ? fmt(addItemForm.eventPrice) : ''"
+                    :value="addItemForm.newPrice > 0 ? fmt(addItemForm.newPrice) : ''"
                     @input="onAddItemPriceInput"
-                    :class="{ 'input-loss': addItemForm.eventPrice > 0 && addItemForm.eventPrice < getProductHpp(addItemForm.productId) }"
+                    :class="{ 'input-loss': addItemForm.newPrice > 0 && addItemForm.newPrice < getProductHpp(addItemForm.productId) }"
                     type="text"
                     placeholder="0"
                     required
@@ -292,7 +292,7 @@
 
                 <!-- Loss Alert real-time -->
                 <div
-                  v-if="addItemForm.eventPrice > 0 && addItemForm.eventPrice < getProductHpp(addItemForm.productId)"
+                  v-if="addItemForm.newPrice > 0 && addItemForm.newPrice < getProductHpp(addItemForm.productId)"
                   class="loss-alert-box"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -302,24 +302,24 @@
                   <div class="loss-text">
                     <strong>Peringatan Rugi!</strong>
                     <span>
-                      Harga event (Rp {{ fmt(addItemForm.eventPrice) }}) di bawah HPP
+                      Harga event (Rp {{ fmt(addItemForm.newPrice) }}) di bawah HPP
                       (Rp {{ fmt(getProductHpp(addItemForm.productId)) }}).
-                      Rugi Rp {{ fmt(getProductHpp(addItemForm.productId) - addItemForm.eventPrice) }} per unit.
+                      Rugi Rp {{ fmt(getProductHpp(addItemForm.productId) - addItemForm.newPrice) }} per unit.
                     </span>
                   </div>
                 </div>
 
                 <!-- Profit preview -->
                 <div
-                  v-else-if="addItemForm.eventPrice > 0"
+                  v-else-if="addItemForm.newPrice > 0"
                   class="profit-preview"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
                   </svg>
                   <span>
-                    Margin event: <strong>Rp {{ fmt(addItemForm.eventPrice - getProductHpp(addItemForm.productId)) }}</strong>
-                    (diskon {{ Math.round((1 - addItemForm.eventPrice / getProductNormalPrice(addItemForm.productId)) * 100) }}% dari harga normal)
+                    Margin event: <strong>Rp {{ fmt(addItemForm.newPrice - getProductHpp(addItemForm.productId)) }}</strong>
+                    (diskon {{ Math.round((1 - addItemForm.newPrice / getProductNormalPrice(addItemForm.productId)) * 100) }}% dari harga normal)
                   </span>
                 </div>
               </div>
@@ -371,7 +371,7 @@ const onAddItemPriceInput = (e) => {
   const origLen = e.target.value.length
 
   const val = parseNumber(e.target.value)
-  addItemForm.eventPrice = val
+  addItemForm.newPrice = val
   e.target.value = val > 0 ? fmt(val) : ''
 
   // Attempt to restore cursor roughly
@@ -391,7 +391,7 @@ const getProductNormalPrice = (productId) => {
 const discountPct = (pli) => {
   const normal = getProductNormalPrice(pli.productId)
   if (!normal) return 0
-  return Math.round((1 - pli.eventPrice / normal) * 100)
+  return Math.round((1 - pli.newPrice / normal) * 100)
 }
 
 // ── Pricelist CRUD state ──────────────────────────────────────────────────────
@@ -404,7 +404,7 @@ const plForm         = reactive({ name: '', description: '' })
 const showAddItemModal = ref(false)
 const addItemTargetPl  = ref(null)
 const addItemFormError = ref('')
-const addItemForm      = reactive({ productId: '', eventPrice: 0 })
+const addItemForm      = reactive({ productId: '', newPrice: 0 })
 
 // Produk yang belum ada di pricelist target
 const availableProductsForPl = computed(() => {
@@ -431,7 +431,7 @@ const handlePlSubmit = async () => {
 }
 
 const handleTogglePricelist = async (pl) => {
-  if (pl.is_active) {
+  if (pl.isActive) {
     if (confirm('Nonaktifkan event ini?')) await pricelistStore.deactivateAll()
   } else {
     if (confirm(`Aktifkan "${pl.name}"?\n\nEvent lain yang sedang aktif akan dinonaktifkan secara otomatis.`)) {
@@ -457,21 +457,21 @@ const handleDeletePricelist = async (pl) => {
 const openAddItemModal = (pl) => {
   addItemTargetPl.value  = pl
   addItemFormError.value = ''
-  Object.assign(addItemForm, { productId: '', eventPrice: 0 })
+  Object.assign(addItemForm, { productId: '', newPrice: 0 })
   showAddItemModal.value = true
 }
 
 const onAddItemProductSelect = (product) => {
   if (!product) return
   addItemForm.productId  = product.id
-  addItemForm.eventPrice = product.sellingPrice ?? product.price ?? 0
+  addItemForm.newPrice = product.sellingPrice ?? product.price ?? 0
 }
 
 const handleAddPlItem = async () => {
   addItemFormError.value = ''
   const product = productsStore.getProductById(addItemForm.productId)
   if (!product) { addItemFormError.value = 'Produk tidak valid'; return }
-  const cleanPrice = parseNumber(addItemForm.eventPrice)
+  const cleanPrice = parseNumber(addItemForm.newPrice)
   const result = await pricelistStore.addPricelistItem(addItemTargetPl.value.id, product, cleanPrice)
   if (result.success) { showAddItemModal.value = false }
   else { addItemFormError.value = result.message }
