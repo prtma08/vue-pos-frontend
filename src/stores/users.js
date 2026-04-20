@@ -5,11 +5,11 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // ─── Mock Data (roles[] array format, synced with auth.js) ────────────────────
 const MOCK_USERS = [
-    { id: 'mock-user-5', name: 'Super Admin', username: 'superuser', roles: ['SUPERUSER', 'ADMIN', 'CASHIER'], email: 'superuser@nextore.id', isActive: true, createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'mock-user-1', name: 'Administrator', username: 'admin', roles: ['ADMIN', 'CASHIER'], email: 'admin@nextore.id', isActive: true, createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'mock-user-2', name: 'Supervisor Utama', username: 'supervisor', roles: ['SUPERVISOR', 'CASHIER'], email: 'supervisor@nextore.id', isActive: true, createdAt: '2024-01-05T00:00:00.000Z' },
-    { id: 'mock-user-3', name: 'Kasir 1', username: 'kasir', roles: ['CASHIER'], email: 'kasir1@nextore.id', isActive: true, createdAt: '2024-01-10T00:00:00.000Z' },
-    { id: 'mock-user-4', name: 'Kasir 2', username: 'kasir2', roles: ['CASHIER'], email: 'kasir2@nextore.id', isActive: false, createdAt: '2024-01-15T00:00:00.000Z' },
+    { id: 'mock-user-5', name: 'Super Admin', username: 'superuser', roles: ['SUPERUSER', 'ADMIN', 'CASHIER'], isActive: true, createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'mock-user-1', name: 'Administrator', username: 'admin', roles: ['ADMIN', 'CASHIER'], isActive: true, createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'mock-user-2', name: 'Supervisor Utama', username: 'supervisor', roles: ['SUPERVISOR', 'CASHIER'], isActive: true, createdAt: '2024-01-05T00:00:00.000Z' },
+    { id: 'mock-user-3', name: 'Kasir 1', username: 'kasir', roles: ['CASHIER'], isActive: true, createdAt: '2024-01-10T00:00:00.000Z' },
+    { id: 'mock-user-4', name: 'Kasir 2', username: 'kasir2', roles: ['CASHIER'], isActive: false, createdAt: '2024-01-15T00:00:00.000Z' },
 ]
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -45,9 +45,8 @@ export const useUsersStore = defineStore('users', () => {
         if (searchTerm.value) {
             const q = searchTerm.value.toLowerCase()
             list = list.filter(u =>
-                u.name.toLowerCase().includes(q) ||
-                u.username.toLowerCase().includes(q) ||
-                u.email?.toLowerCase().includes(q)
+                (u.name || '').toLowerCase().includes(q) ||
+                (u.username || '').toLowerCase().includes(q)
             )
         }
         return list

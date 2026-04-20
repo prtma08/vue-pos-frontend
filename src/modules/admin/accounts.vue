@@ -37,8 +37,6 @@
             <th>#</th>
             <th>Nama & Username</th>
             <th>Role</th>
-            <th>Email</th>
-            <th>Status</th>
             <th>Bergabung</th>
             <th>Aksi</th>
           </tr>
@@ -62,12 +60,6 @@
               <div class="roles-wrap">
                 <span v-for="r in (u.roles || [])" :key="r" class="badge" :class="roleBadgeClass(r)">{{ store.getRoleLabel(r) }}</span>
               </div>
-            </td>
-            <td class="col-email">{{ u.email || '—' }}</td>
-            <td>
-              <span class="status-dot" :class="u.isActive ? 'active' : 'inactive'">
-                {{ u.isActive ? 'Aktif' : 'Nonaktif' }}
-              </span>
             </td>
             <td class="col-date">{{ formatDate(u.createdAt) }}</td>
             <td class="col-actions">
@@ -112,11 +104,17 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Username <span class="required">*</span></label>
-                <input v-model="form.username" class="input-field" type="text" placeholder="contoh: kasir1" :disabled="!!editTarget" required/>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Email</label>
-                <input v-model="form.email" class="input-field" type="email" placeholder="email@nextore.id"/>
+                <input 
+                  v-model="form.username" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.username && fieldErrors.username }"
+                  type="text" 
+                  placeholder="contoh: kasir1" 
+                  :disabled="!!editTarget" 
+                  @blur="touched.username = true"
+                  @input="fieldErrors.username = ''"
+                />
+                <span v-if="touched.username && fieldErrors.username" class="field-error">{{ fieldErrors.username }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Role <span class="required">*</span></label>
@@ -130,10 +128,19 @@
               </div>
               <div class="form-group">
                 <label class="form-label">
-                  Password {{ editTarget ? '(kosongkan jika tidak diubah)' : '' }}
+                  Password {{ editTarget ? '(Opsional - isi untuk mengubah)' : '' }}
                   <span v-if="!editTarget" class="required">*</span>
                 </label>
-                <input v-model="form.password" class="input-field" type="password" placeholder="Min. 6 karakter" :required="!editTarget"/>
+                <input 
+                  v-model="form.password" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.password && fieldErrors.password }"
+                  type="password" 
+                  placeholder="Min. 8 char, uppercase, lowercase, angka" 
+                  @blur="touched.password = true"
+                  @input="fieldErrors.password = ''"
+                />
+                <span v-if="touched.password && fieldErrors.password" class="field-error">{{ fieldErrors.password }}</span>
               </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
@@ -186,20 +193,42 @@ const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
-const form = reactive({ name: '', username: '', email: '', roles: [], password: '' })
-const fieldErrors = reactive({ name: '' })
-const touched = reactive({ name: false })
+const form = reactive({ name: '', username: '', roles: [], password: '' })
+const fieldErrors = reactive({ name: '', username: '', password: '' })
+const touched = reactive({ name: false, username: false, password: false })
 
-const validationRules = () => ({
-  name: {
-    value: form.name.trim(),
-    rules: [
-      rules.required('Nama Lengkap perlu diisi.'),
-      rules.maxLength(100, 'Nama maksimal 100 karakter.'),
-      rules.noSpecialChars('Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
-    ],
+const validationRules = () => {
+  const vRules = {
+    name: {
+      value: form.name.trim(),
+      rules: [
+        rules.required('Nama Lengkap perlu diisi.'),
+        rules.maxLength(20, 'Nama maksimal 20 karakter.'),
+        rules.noSpecialChars('Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
+      ],
+    },
+    username: {
+      value: form.username.trim(),
+      rules: [
+        rules.required('Username perlu diisi.'),
+        rules.maxLength(20, 'Username maksimal 20 karakter.'),
+        rules.pattern(/^[a-zA-Z0-9_]+$/, 'Username hanya boleh huruf, angka, dan underscore (_).'),
+      ],
+    }
   }
-})
+
+  if (!editTarget.value || form.password) {
+    vRules.password = {
+      value: form.password,
+      rules: [
+        rules.required('Password perlu diisi.'),
+        rules.pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/, 'Password minimal 8 karakter, wajib mengandung angka, huruf besar, dan kecil.'),
+      ]
+    }
+  }
+  
+  return vRules
+}
 
 const truncateName = (name, maxLen = 20) => name && name.length > maxLen ? name.slice(0, maxLen) + '...' : name
 
@@ -220,9 +249,9 @@ const roleBadgeClass = (role) => ({ SUPERUSER: 'badge-role-superuser', ADMIN: 'b
 const openModal = (u = null) => {
   editTarget.value = u
   formError.value = ''
-  Object.assign(fieldErrors, { name: '' })
-  Object.assign(touched, { name: false })
-  Object.assign(form, { name: u?.name || '', username: u?.username || '', email: u?.email || '', roles: u?.roles ? [...u.roles] : [], password: '' })
+  Object.assign(fieldErrors, { name: '', username: '', password: '' })
+  Object.assign(touched, { name: false, username: false, password: false })
+  Object.assign(form, { name: u?.name || '', username: u?.username || '', roles: u?.roles ? [...u.roles] : [], password: '' })
   showModal.value = true
 }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
@@ -234,7 +263,7 @@ const handleSubmit = async () => {
   Object.assign(fieldErrors, errors)
   if (!valid) return
   if (form.roles.length === 0) { formError.value = 'Pilih minimal 1 role'; return }
-  const payload = { name: form.name.trim(), username: form.username.trim(), email: form.email.trim() || null, roles: [...form.roles] }
+  const payload = { name: form.name.trim(), username: form.username.trim(), roles: [...form.roles] }
   if (form.password) payload.password = form.password
   const result = editTarget.value
     ? await store.update(editTarget.value.id, payload)

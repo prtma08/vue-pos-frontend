@@ -426,6 +426,7 @@
                 </div>
                 <div class="history-meta">
                   <span v-if="h.previousPrice" class="h-prev">sebelumnya: Rp {{ fmt(h.previousPrice) }}</span>
+                  <span v-if="h.user" class="h-user">Oleh: {{ h.user.name }}</span>
                   <span class="h-date">{{ fmtDate(h.effectiveDate) }}</span>
                 </div>
               </div>
@@ -2016,6 +2017,7 @@ const handleRemovePlItem = async (pli) => {
 .history-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }
 .h-prev { font-size: 0.75rem; color: var(--text-tertiary); }
 .h-date { font-size: 0.72rem; color: var(--text-tertiary); }
+.h-user { font-size: 0.72rem; color: var(--text-tertiary); font-style: italic; }
 
 .action-btn.history { color: #6366f1; }
 .action-btn.history:hover { background: rgba(99,102,241,0.12); }

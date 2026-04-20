@@ -177,7 +177,7 @@ const handleLogin = async () => {
       if (authStore.needsPosDevice) {
         router.push('/cashier/device-select')
       } else {
-        const roleRedirects = { superuser: '/admin/dashboard', admin: '/admin', supervisor: '/admin/transactions', kasir: '/cashier' }
+        const roleRedirects = { superuser: '/admin/accounts', admin: '/admin', supervisor: '/admin/transactions', kasir: '/cashier' }
         router.push(roleRedirects[authStore.activeRole] || '/admin')
       }
     } else {

@@ -20,7 +20,7 @@
       <!-- Navigation -->
       <nav class="sidebar-nav">
         <!-- Dashboard -->
-        <div class="nav-group">
+        <div class="nav-group" v-if="!authStore.isSuperuser">
           <router-link to="/admin/dashboard" class="nav-item" active-class="is-active">
             <span class="nav-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -33,7 +33,7 @@
         </div>
 
         <!-- Master Data -->
-        <div class="nav-group">
+        <div class="nav-group" v-if="!authStore.isSuperuser">
           <span class="nav-section-label">Master Data</span>
           <router-link to="/admin/categories" class="nav-item" active-class="is-active">
             <span class="nav-icon">
@@ -73,7 +73,7 @@
         </div>
 
         <!-- Keuangan -->
-        <div class="nav-group">
+        <div class="nav-group" v-if="!authStore.isSuperuser">
           <span class="nav-section-label">Keuangan</span>
           <router-link to="/admin/transactions" class="nav-item" active-class="is-active">
             <span class="nav-icon">
@@ -98,7 +98,7 @@
         </div>
 
         <!-- Operasional -->
-        <div class="nav-group">
+        <div class="nav-group" v-if="!authStore.isSuperuser">
           <span class="nav-section-label">Operasional</span>
           <router-link to="/admin/discounts" class="nav-item" active-class="is-active">
             <span class="nav-icon">
@@ -157,6 +157,23 @@
               </svg>
             </span>
             <span class="nav-label-text">Pengaturan</span>
+          </router-link>
+        </div>
+
+        <!-- Manajemen Sistem (Superuser) -->
+        <div class="nav-group" v-if="authStore.isSuperuser">
+          <span class="nav-section-label">Manajemen Sistem</span>
+          <router-link to="/admin/accounts" class="nav-item" active-class="is-active">
+            <span class="nav-icon">
+              <!-- Users Icon -->
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </span>
+            <span class="nav-label-text">Kelola Akun</span>
           </router-link>
         </div>
       </nav>

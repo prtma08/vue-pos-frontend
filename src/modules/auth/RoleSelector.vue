@@ -120,8 +120,10 @@ const handleSelectRole = async (role) => {
     router.push('/cashier/device-select')
   } else {
     const redirects = {
-      superuser: '/admin/dashboard',
+      superuser: '/admin/accounts',
       admin: '/admin/dashboard',
+      supervisor: '/admin/transactions',
+      kasir: '/cashier',
     }
     router.push(redirects[role] || '/admin/dashboard')
   }

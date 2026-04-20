@@ -51,7 +51,7 @@ const NotFound = defineComponent({
 
 // ─── Role → default redirect map ─────────────────────────────────────────────
 const ROLE_REDIRECTS = {
-  superuser: '/admin/dashboard',
+  superuser: '/admin/accounts',
   admin: '/admin/dashboard',
   supervisor: '/admin/transactions',
   kasir: '/cashier',

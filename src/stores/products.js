@@ -496,11 +496,24 @@ export const useProductsStore = defineStore('products', () => {
       return productPrices.value
         .filter(p => p.productId === productId)
         .sort((a, b) => new Date(b.effectiveDate) - new Date(a.effectiveDate))
+        .map((h, i) => ({
+          ...h,
+          isActive: i === 0
+        }))
     }
     try {
       const response = await apiClient.get(`/products/${productId}/price-histories`)
-      // Backend mengembalikan daftar histori. Kita kembalikan langsung ke tabel UI
-      return response.data.data || []
+      const histories = response.data.data || []
+      // Backend mengembalikan daftar histori. Kita mapping ke format UI
+      return histories
+        .sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt))
+        .map((h, i) => ({
+          ...h,
+          price: h.newPrice,
+          previousPrice: h.oldPrice,
+          effectiveDate: h.changedAt,
+          isActive: i === 0
+        }))
     } catch (err) {
       console.error(err)
       return []
