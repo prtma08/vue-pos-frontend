@@ -24,7 +24,7 @@ export const rules = {
         (v) => (v && !regex.test(v)) ? msg : '',
 
     /** Nama hanya boleh huruf, angka, spasi, dan tanda baca dasar (.,'-) */
-    noSpecialChars: (msg = 'Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.') =>
+    noSpecialChars: (msg = "Nama hanya boleh berisi huruf, angka, spasi, dan simbol dasar (.,'-)") =>
         (v) => (v && !/^[a-zA-Z0-9\s.,'\-]+$/.test(v)) ? msg : '',
 
     /** Cegah input hanya berisi spasi kosong */

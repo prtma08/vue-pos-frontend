@@ -33,7 +33,7 @@
             <button class="action-btn danger" @click="deleteTarget = d" title="Hapus"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
           </div>
         </div>
-        <h3 class="device-name">{{ d.name }}</h3>
+        <h3 class="device-name" :title="d.name">{{ truncateName(d.name, 20) }}</h3>
         <p class="device-location">📍 {{ d.location || 'Lokasi belum diset' }}</p>
         <div class="device-footer">
           <button class="status-toggle" :class="d.isActive ? 'active' : 'inactive'" @click="store.toggleActive(d.id)">
@@ -54,7 +54,16 @@
             <form @submit.prevent="handleSubmit" class="modal-form">
               <div class="form-group">
                 <label class="form-label">Nama Terminal <span class="req">*</span></label>
-                <input v-model="form.name" class="input-field" type="text" placeholder="contoh: POS Kasir 1" required/>
+                <input 
+                  v-model="form.name" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.name && fieldErrors.name }"
+                  type="text" 
+                  placeholder="contoh: POS Kasir 1"
+                  @blur="touched.name = true"
+                  @input="fieldErrors.name = ''"
+                />
+                <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Lokasi</label>
@@ -102,15 +111,31 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { usePosDevicesStore } from '@/stores/posDevices'
+import { validateAll, rules } from '@/utils/validators'
 const store = usePosDevicesStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const showModal = ref(false); const editTarget = ref(null); const deleteTarget = ref(null); const formError = ref('')
 const form = reactive({ name: '', location: '', isActive: true })
+const fieldErrors = reactive({ name: '' })
+const touched = reactive({ name: false })
+
+const validationRules = () => ({
+  name: {
+    value: form.name.trim(),
+    rules: [
+      rules.required('Nama Terminal wajib diisi.'),
+      rules.maxLength(100, 'Nama Terminal maksimal 100 karakter.'),
+      rules.noSpecialChars('Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
+    ],
+  }
+})
+
+const truncateName = (name, maxLen = 20) => name && name.length > maxLen ? name.slice(0, maxLen) + '...' : name
 onMounted(() => store.fetchAll())
-const openModal = (d = null) => { editTarget.value = d; formError.value = ''; Object.assign(form, { name: d?.name || '', location: d?.location || '', isActive: d?.isActive !== false }); showModal.value = true }
+const openModal = (d = null) => { editTarget.value = d; formError.value = ''; Object.assign(fieldErrors, { name: '' }); Object.assign(touched, { name: false }); Object.assign(form, { name: d?.name || '', location: d?.location || '', isActive: d?.isActive !== false }); showModal.value = true }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
-const handleSubmit = async () => { formError.value = ''; const p = { name: form.name.trim(), location: form.location.trim(), isActive: form.isActive }; const r = editTarget.value ? await store.update(editTarget.value.id, p) : await store.add(p); if (r.success) closeModal(); else formError.value = r.message }
+const handleSubmit = async () => { formError.value = ''; Object.keys(touched).forEach(k => touched[k] = true); const { valid, errors } = validateAll(validationRules()); Object.assign(fieldErrors, errors); if (!valid) return; const p = { name: form.name.trim(), location: form.location.trim(), isActive: form.isActive }; const r = editTarget.value ? await store.update(editTarget.value.id, p) : await store.add(p); if (r.success) closeModal(); else formError.value = r.message }
 const handleDelete = async () => { const r = await store.remove(deleteTarget.value.id); if (r.success) deleteTarget.value = null }
 </script>
 

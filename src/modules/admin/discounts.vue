@@ -34,7 +34,7 @@
           <tr v-for="(d, i) in store.filtered" :key="d.id" class="table-row">
             <td class="col-idx">{{ i + 1 }}</td>
             <td>
-              <span class="cell-name-text">{{ d.name }}</span>
+              <span class="cell-name-text" :title="d.name">{{ truncateName(d.name, 20) }}</span>
               <span v-if="!d.isTransactionLevel && !d.isMemberLevel && d.appliedProductIds?.length" class="product-count-badge">
                 {{ d.appliedProductIds.length }} produk
               </span>
@@ -189,7 +189,7 @@
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="store.loading || !isValid">
+                <button type="submit" class="btn btn-primary" :disabled="store.loading">
                   <span v-if="store.loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan' : 'Tambah' }}
                 </button>
@@ -261,6 +261,7 @@ const validationRules = () => {
         rules.required('Nama diskon wajib diisi.'),
         rules.minLength(3, 'Nama diskon minimal 3 karakter.'),
         rules.maxLength(100, 'Nama diskon maksimal 100 karakter.'),
+        rules.noSpecialChars('Nama diskon hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
       ],
     },
     value: { value: form.value, rules: valueRules },
@@ -299,6 +300,7 @@ const addTargetProduct    = (id) => { if (id && !form.appliedProductIds.includes
 const removeTargetProduct = (id) => { form.appliedProductIds = form.appliedProductIds.filter(x => x !== id) }
 
 const formatDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+const truncateName = (name, maxLen = 20) => name && name.length > maxLen ? name.slice(0, maxLen) + '...' : name
 
 const openModal = (d = null) => {
   editTarget.value = d

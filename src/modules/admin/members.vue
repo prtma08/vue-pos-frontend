@@ -30,6 +30,7 @@
             <th>#</th>
             <th>Nama Member</th>
             <th>Telepon</th>
+            <th>Status</th>
             <th>Bergabung</th>
             <th>Aksi</th>
           </tr>
@@ -39,15 +40,20 @@
             <td colspan="6" class="empty-row">Tidak ada member ditemukan.</td>
           </tr>
           <tr v-for="(m, i) in store.filtered" :key="m.id" class="table-row">
-            <td class="col-idx">{{ i + 1 }}</td>
+            <td class="col-idx">{{ (store.pagination.page - 1) * store.pagination.limit + i + 1 }}</td>
             <td>
               <div class="cell-member">
                 <div class="member-avatar">{{ m.name[0] }}</div>
                 <span class="member-name" :title="m.name">{{ truncateName(m.name, 20) }}</span>
               </div>
             </td>
-            <td><a :href="`tel:${m.phone}`" class="link-phone" :title="m.phone">{{ m.phone.length > 12 ? m.phone.substring(0, 12) + '...' : m.phone }}</a></td>
-            <td class="col-date">{{ formatDate(m.createdAt) }}</td>
+            <td><a :href="getPhoneHref(m.phone)" class="link-phone" :title="String(m.phone)">{{ formatPhone(m.phone) }}</a></td>
+            <td>
+              <span class="status-badge" :class="m.isActive ? 'badge-active' : 'badge-inactive'">
+                {{ m.isActive ? 'Aktif' : 'Non-Aktif' }}
+              </span>
+            </td>
+            <td class="col-date">{{ formatDate(m.created_at || m.createdAt) }}</td>
             <td class="col-actions">
               <button class="action-btn edit" @click="openModal(m)" title="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
               <button class="action-btn danger" @click="confirmDelete(m)" title="Hapus"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg></button>
@@ -103,6 +109,16 @@
                 />
                 <span v-if="touched.phone && fieldErrors.phone" class="field-error">{{ fieldErrors.phone }}</span>
               </div>
+              <div class="form-group">
+                <label class="form-label">Status Member</label>
+                <div class="status-toggle-wrap">
+                  <label class="toggle-label">
+                    <input type="checkbox" v-model="form.isActive" class="toggle-input"/>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">{{ form.isActive ? 'Aktif' : 'Non-Aktif' }}</span>
+                  </label>
+                </div>
+              </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
@@ -154,7 +170,7 @@ const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
-const form = reactive({ name: '', phone: '' })
+const form = reactive({ name: '', phone: '', isActive: true })
 const fieldErrors = reactive({ name: '', phone: '' })
 const touched = reactive({ name: false, phone: false })
 
@@ -163,9 +179,9 @@ const validationRules = () => ({
     value: form.name,
     rules: [
       rules.noWhitespaceOnly('Input tidak boleh hanya berisi spasi.'),
-      rules.required('Mohon maaf, Nama Lengkap perlu Anda isi terlebih dahulu.'),
+      rules.required('Nama Lengkap perlu Anda isi terlebih dahulu.'),
       rules.minLength(3, 'Nama minimal 3 karakter.'),
-      rules.maxLength(250, 'Nama maksimal 250 karakter.'),
+      rules.maxLength(100, 'Nama maksimal 100 karakter.'),
       rules.noSpecialChars('Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
     ],
   },
@@ -173,8 +189,8 @@ const validationRules = () => ({
     value: form.phone,
     rules: [
       rules.noWhitespaceOnly('Input tidak boleh hanya berisi spasi.'),
-      rules.required('Mohon maaf, Nomor Telepon perlu Anda isi terlebih dahulu.'),
-      rules.pattern(/^[0-9]{8,50}$/, 'Nomor telepon tidak valid, minimal 8 dan maksimal 50 digit angka.'),
+      rules.required('Nomor Telepon perlu Anda isi terlebih dahulu.'),
+      rules.pattern(/^\+?[0-9\s\-]{8,50}$/, 'Nomor telepon tidak valid, gunakan 8-50 karakter angka, opsi dengan awalan + atau tanda -'),
       (val) => {
         if (!val) return ''
         const exists = store.members.find(m => m.phone === val && m.id !== editTarget.value?.id)
@@ -194,6 +210,21 @@ const formatDate = (iso) => {
   return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+const formatPhone = (phone) => {
+  if (!phone) return '—'
+  let p = String(phone)
+  // Kembalikan 62 ke 0 untuk tampilan
+  if (p.startsWith('62')) p = '0' + p.substring(2)
+  return p.length > 15 ? p.substring(0, 15) + '...' : p
+}
+
+const getPhoneHref = (phone) => {
+  if (!phone) return '#'
+  let p = String(phone)
+  if (p.startsWith('62')) p = '0' + p.substring(2)
+  return `tel:${p}`
+}
+
 const truncateName = (name, maxLen) => {
   if (!name) return ''
   return name.length > maxLen ? name.substring(0, maxLen) + '...' : name
@@ -202,7 +233,9 @@ const truncateName = (name, maxLen) => {
 const openModal = (m = null) => {
   editTarget.value = m
   formError.value = ''
-  Object.assign(form, { name: m?.name || '', phone: m?.phone || '' })
+  let p = m?.phone ? String(m.phone) : ''
+  if (p.startsWith('62')) p = '0' + p.substring(2)
+  Object.assign(form, { name: m?.name || '', phone: p, isActive: m?.isActive ?? true })
   Object.assign(fieldErrors, { name: '', phone: '' })
   Object.assign(touched, { name: false, phone: false })
   showModal.value = true
@@ -219,11 +252,22 @@ const handleSubmit = async () => {
   Object.assign(fieldErrors, errors)
   if (!valid) return
 
-  const payload = { name: form.name.trim(), phone: form.phone.trim() }
+  let phoneStr = form.phone.replace(/\D/g, '')
+  if (phoneStr.startsWith('0')) phoneStr = '62' + phoneStr.substring(1)
+  const payload = { name: form.name.trim(), phone: Number(phoneStr), isActive: form.isActive }
   const result = editTarget.value
     ? await store.update(editTarget.value.id, payload)
     : await store.add(payload)
-  if (result.success) { closeModal() } else { formError.value = result.message }
+  
+  if (result.success) { 
+    closeModal() 
+  } else { 
+    if (result.errors && typeof result.errors === 'object') {
+      formError.value = `${result.message} - ${JSON.stringify(result.errors)}`
+    } else {
+      formError.value = result.message 
+    }
+  }
 }
 
 const confirmDelete = (m) => { deleteTarget.value = m }

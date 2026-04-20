@@ -50,7 +50,7 @@
             </button>
           </div>
         </div>
-        <h3 class="bundle-name">{{ b.name }}</h3>
+        <h3 class="bundle-name" :title="b.name">{{ truncateName(b.name, 20) }}</h3>
         <div class="bundle-items">
           <span v-for="(item, i) in b.items" :key="i" class="item-chip">{{ item.name }} × {{ item.qty }}</span>
         </div>
@@ -242,7 +242,7 @@
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="loading || !isValid">
+                <button type="submit" class="btn btn-primary" :disabled="loading">
                   <span v-if="loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan' : 'Buat Paket' }}
                 </button>
@@ -340,6 +340,7 @@ const validationRules = () => ({
       rules.required('Nama paket wajib diisi.'),
       rules.minLength(3, 'Nama paket minimal 3 karakter.'),
       rules.maxLength(100, 'Nama paket maksimal 100 karakter.'),
+      rules.noSpecialChars('Nama paket hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
     ],
   },
   bundlePrice: {
@@ -387,6 +388,7 @@ const bundleMarginPct = computed(() => {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const formatCurrency = (v) => Math.round(v || 0).toLocaleString('id-ID')
+const truncateName = (name, maxLen = 20) => name && name.length > maxLen ? name.slice(0, maxLen) + '...' : name
 
 const getProductHpp = (productId) => {
   const p = productsStore.products.find(x => x.id === productId)

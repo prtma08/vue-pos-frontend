@@ -52,8 +52,8 @@
             <td>
               <div class="cell-user">
                 <div class="user-avatar" :style="{ background: avatarColor((u.roles || [])[0]) }">{{ u.name[0] }}</div>
-                <div>
-                  <div class="user-name">{{ u.name }}</div>
+                <div class="user-info">
+                  <span class="user-name" :title="u.name">{{ truncateName(u.name, 20) }}</span>
                   <div class="user-username">@{{ u.username }}</div>
                 </div>
               </div>
@@ -99,7 +99,16 @@
             <form @submit.prevent="handleSubmit" class="modal-form">
               <div class="form-group">
                 <label class="form-label">Nama Lengkap <span class="required">*</span></label>
-                <input v-model="form.name" class="input-field" type="text" placeholder="contoh: Kasir Satu" required/>
+                <input 
+                  v-model="form.name" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.name && fieldErrors.name }"
+                  type="text" 
+                  placeholder="contoh: Kasir Satu"
+                  @blur="touched.name = true"
+                  @input="fieldErrors.name = ''"
+                />
+                <span v-if="touched.name && fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Username <span class="required">*</span></label>
@@ -167,6 +176,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import AppPagination from '@/components/AppPagination.vue'
 import { useUsersStore } from '@/stores/users'
+import { validateAll, rules } from '@/utils/validators'
 
 const store = useUsersStore()
 const theme = ref(localStorage.getItem('nextore-theme') || 'light')
@@ -177,6 +187,21 @@ const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
 const form = reactive({ name: '', username: '', email: '', roles: [], password: '' })
+const fieldErrors = reactive({ name: '' })
+const touched = reactive({ name: false })
+
+const validationRules = () => ({
+  name: {
+    value: form.name.trim(),
+    rules: [
+      rules.required('Nama Lengkap perlu diisi.'),
+      rules.maxLength(100, 'Nama maksimal 100 karakter.'),
+      rules.noSpecialChars('Nama hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
+    ],
+  }
+})
+
+const truncateName = (name, maxLen = 20) => name && name.length > maxLen ? name.slice(0, maxLen) + '...' : name
 
 onMounted(() => store.fetchAll())
 
@@ -195,6 +220,8 @@ const roleBadgeClass = (role) => ({ SUPERUSER: 'badge-role-superuser', ADMIN: 'b
 const openModal = (u = null) => {
   editTarget.value = u
   formError.value = ''
+  Object.assign(fieldErrors, { name: '' })
+  Object.assign(touched, { name: false })
   Object.assign(form, { name: u?.name || '', username: u?.username || '', email: u?.email || '', roles: u?.roles ? [...u.roles] : [], password: '' })
   showModal.value = true
 }
@@ -202,6 +229,10 @@ const closeModal = () => { showModal.value = false; editTarget.value = null }
 
 const handleSubmit = async () => {
   formError.value = ''
+  Object.keys(touched).forEach(k => touched[k] = true)
+  const { valid, errors } = validateAll(validationRules())
+  Object.assign(fieldErrors, errors)
+  if (!valid) return
   if (form.roles.length === 0) { formError.value = 'Pilih minimal 1 role'; return }
   const payload = { name: form.name.trim(), username: form.username.trim(), email: form.email.trim() || null, roles: [...form.roles] }
   if (form.password) payload.password = form.password

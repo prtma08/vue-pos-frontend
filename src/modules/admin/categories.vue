@@ -37,11 +37,11 @@
             <td colspan="6" class="empty-row">Tidak ada kategori ditemukan.</td>
           </tr>
           <tr v-for="(cat, i) in store.filtered" :key="cat.id" class="table-row">
-            <td class="col-idx">{{ i + 1 }}</td>
+            <td class="col-idx">{{ (store.pagination.page - 1) * store.pagination.limit + i + 1 }}</td>
             <td>
               <div class="cell-name">
                 <div class="cat-badge">{{ cat.name[0] }}</div>
-                <span>{{ cat.name }}</span>
+                <span :title="cat.name">{{ truncateName(cat.name, 20) }}</span>
               </div>
             </td>
             <td>
@@ -107,7 +107,7 @@
               <div v-if="formError" class="form-error">{{ formError }}</div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
-                <button type="submit" class="btn btn-primary" :disabled="store.loading || !isValid">
+                <button type="submit" class="btn btn-primary" :disabled="store.loading">
                   <span v-if="store.loading" class="spinner-sm"></span>
                   {{ editTarget ? 'Simpan Perubahan' : 'Tambah' }}
                 </button>
@@ -167,6 +167,7 @@ const categoryRules = () => ({
       rules.required('Nama kategori wajib diisi.'),
       rules.minLength(3, 'Nama kategori minimal 3 karakter.'),
       rules.maxLength(100, 'Nama kategori maksimal 100 karakter.'),
+      rules.noSpecialChars('Nama kategori hanya boleh berisi huruf dan angka tanpa simbol khusus.'),
     ],
   },
 })
@@ -178,6 +179,11 @@ onMounted(() => store.fetchAll())
 const formatDate = (iso) => {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const truncateName = (name, maxLen) => {
+  if (!name) return ''
+  return name.length > maxLen ? name.substring(0, maxLen) + '...' : name
 }
 
 const openModal = (cat = null) => {
