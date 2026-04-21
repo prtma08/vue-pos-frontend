@@ -65,7 +65,8 @@
         <span>Memuat data produk...</span>
       </div>
 
-      <table v-else class="data-table">
+      <div v-else class="table-responsive">
+        <table class="data-table">
         <thead>
           <tr>
             <th class="th-checkbox" style="width: 40px; text-align: center;">
@@ -155,7 +156,8 @@
             </td>
           </tr>
         </tbody>
-      </table>
+        </table>
+      </div>
       
       <AppPagination 
         :current-page="store.pagination.page"
@@ -1106,9 +1108,13 @@ const handleRemovePlItem = async (pli) => {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.table-responsive {
+  width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  box-shadow: var(--shadow-md);
 }
 
 .state-loading {

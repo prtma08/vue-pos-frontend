@@ -28,10 +28,11 @@
 
     <!-- ── Table ── -->
     <div class="table-card">
-      <div v-if="store.loading" class="state-loading">
-        <span class="spinner-ring"></span><span>Memuat akun...</span>
+      <div v-if="store.loading" class="empty-row" style="padding: 2rem !important">
+        Loading data...
       </div>
-      <table v-else class="data-table">
+      <div v-else class="table-responsive">
+        <table class="data-table">
         <thead>
           <tr>
             <th>#</th>
@@ -74,7 +75,9 @@
             </td>
           </tr>
         </tbody>
-      </table>
+        </table>
+      </div>
+    </div>
       
       <AppPagination 
         :current-page="store.pagination.page"
@@ -533,6 +536,12 @@ const handleDelete = async () => {
   background: #1e293b;
   border-color: #334155;
   box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .data-table {
