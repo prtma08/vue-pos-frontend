@@ -102,7 +102,7 @@ export const useUsersStore = defineStore('users', () => {
         try {
             const { default: apiClient } = await import('@/api/client')
             const res = await apiClient.post('/users', payload)
-            const created = res.data.data ?? res.data
+            const created = { ...payload, ...(res.data.data ?? res.data) }
             users.value.push(created)
             return { success: true, data: created }
         } catch (err) {
@@ -130,7 +130,7 @@ export const useUsersStore = defineStore('users', () => {
             const { default: apiClient } = await import('@/api/client')
             const res = await apiClient.put(`/users/${id}`, payload)
             const idx = users.value.findIndex(u => u.id === id)
-            if (idx !== -1) users.value[idx] = { ...users.value[idx], ...(res.data.data ?? res.data) }
+            if (idx !== -1) users.value[idx] = { ...users.value[idx], ...payload, ...(res.data.data ?? res.data) }
             return { success: true }
         } catch (err) {
             const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'

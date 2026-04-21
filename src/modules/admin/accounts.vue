@@ -37,6 +37,7 @@
             <th>#</th>
             <th>Nama & Username</th>
             <th>Role</th>
+            <th>Status</th>
             <th>Bergabung</th>
             <th>Aksi</th>
           </tr>
@@ -60,6 +61,11 @@
               <div class="roles-wrap">
                 <span v-for="r in (u.roles || [])" :key="r" class="badge" :class="roleBadgeClass(r)">{{ store.getRoleLabel(r) }}</span>
               </div>
+            </td>
+            <td>
+              <span class="status-dot" :class="u.status === 'SUSPENDED' ? 'inactive' : 'active'">
+                {{ u.status === 'SUSPENDED' ? 'Suspended' : 'Ready' }}
+              </span>
             </td>
             <td class="col-date">{{ formatDate(u.createdAt) }}</td>
             <td class="col-actions">
@@ -125,6 +131,13 @@
                   </label>
                 </div>
                 <p v-if="form.roles.length === 0" class="form-hint">Pilih minimal 1 role</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Status <span class="required">*</span></label>
+                <select v-model="form.status" class="input-field" required>
+                  <option value="READY">Ready</option>
+                  <option value="SUSPENDED">Suspended</option>
+                </select>
               </div>
               <div class="form-group">
                 <label class="form-label">
@@ -193,7 +206,7 @@ const showModal = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
-const form = reactive({ name: '', username: '', roles: [], password: '' })
+const form = reactive({ name: '', username: '', roles: [], password: '', status: 'READY' })
 const fieldErrors = reactive({ name: '', username: '', password: '' })
 const touched = reactive({ name: false, username: false, password: false })
 
@@ -251,7 +264,13 @@ const openModal = (u = null) => {
   formError.value = ''
   Object.assign(fieldErrors, { name: '', username: '', password: '' })
   Object.assign(touched, { name: false, username: false, password: false })
-  Object.assign(form, { name: u?.name || '', username: u?.username || '', roles: u?.roles ? [...u.roles] : [], password: '' })
+  Object.assign(form, { 
+    name: u?.name || '', 
+    username: u?.username || '', 
+    roles: u?.roles ? [...u.roles] : [], 
+    password: '',
+    status: u?.status || 'READY'
+  })
   showModal.value = true
 }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
@@ -263,7 +282,7 @@ const handleSubmit = async () => {
   Object.assign(fieldErrors, errors)
   if (!valid) return
   if (form.roles.length === 0) { formError.value = 'Pilih minimal 1 role'; return }
-  const payload = { name: form.name.trim(), username: form.username.trim(), roles: [...form.roles] }
+  const payload = { name: form.name.trim(), username: form.username.trim(), roles: [...form.roles], status: form.status }
   if (form.password) payload.password = form.password
   const result = editTarget.value
     ? await store.update(editTarget.value.id, payload)
