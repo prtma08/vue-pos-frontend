@@ -120,7 +120,11 @@ export const useDiscountsStore = defineStore('discounts', () => {
                     search: params.search || undefined,
                 }
             })
-            discounts.value = res.data.data ?? []
+            const fetched = res.data.data ?? []
+            discounts.value = fetched.map(d => ({
+                ...d,
+                appliedProductIds: d.products ? d.products.map(p => p.id) : (d.appliedProductIds || d.productIds || [])
+            }))
             if (res.data.meta) {
                 pagination.value = { ...pagination.value, ...res.data.meta }
             }

@@ -104,6 +104,12 @@ export default defineConfig({
         secure: true,
         cookieDomainRewrite: 'localhost',
       },
+      '/purchase-orders': {
+        target: BACKEND_URL,
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+      },
     },
   },
   build: {

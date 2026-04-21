@@ -319,7 +319,7 @@ const openModal = (d = null) => {
     type:    d?.type    || 'PERCENTAGE',
     value:   d?.value   || 0,
     level:   d ? (d.isTransactionLevel ? 'transaction' : d.isMemberLevel ? 'member' : 'product') : 'transaction',
-    appliedProductIds: d?.appliedProductIds ? [...d.appliedProductIds] : (d?.productIds ? [...d.productIds] : []),
+    appliedProductIds: d?.appliedProductIds ? [...d.appliedProductIds] : (d?.productIds ? [...d.productIds] : (d?.products ? d.products.map(p => p.id) : [])),
     startDate: d?.startDate ? d.startDate.split('T')[0] : '',
     endDate:   d?.endDate   ? d.endDate.split('T')[0] : '',
     isActive:  d?.isActive  !== false,

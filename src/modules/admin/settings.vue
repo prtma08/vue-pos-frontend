@@ -13,23 +13,6 @@
     <div v-if="saveSuccess" class="alert-success">✅ Pengaturan berhasil disimpan!</div>
 
     <div class="settings-grid">
-      <!-- General Settings -->
-      <div class="settings-card">
-        <h3 class="card-section-title">🏪 Informasi POS</h3>
-        <div class="form-group">
-          <label class="form-label">Nama POS / Toko</label>
-          <input v-model="form.posName" class="input-field" type="text" placeholder="Nextore POS" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Pesan Footer Struk</label>
-          <input v-model="form.receiptFooter" class="input-field" type="text" placeholder="Terima kasih atas kunjungan Anda!" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Simbol Mata Uang</label>
-          <input v-model="form.currencySymbol" class="input-field" type="text" placeholder="Rp" style="max-width: 120px" />
-        </div>
-      </div>
-
       <!-- Stock & Expiry Settings -->
       <div class="settings-card">
         <h3 class="card-section-title">📦 Stok & Kadaluarsa</h3>
@@ -55,20 +38,6 @@
         <div class="expiry-preview">
           <span class="preview-icon">📅</span>
           <span>Dashboard akan menampilkan produk yang expired dalam <strong>{{ form.expiryNotificationDays }} hari</strong> ke depan.</span>
-        </div>
-      </div>
-
-      <!-- Tax Settings -->
-      <div class="settings-card">
-        <h3 class="card-section-title">💰 Pajak & Pembayaran</h3>
-        <div class="form-group">
-          <label class="form-label">Persentase Pajak (%)
-            <span class="form-hint">0 = tidak ada pajak. Diterapkan otomatis pada setiap transaksi.</span>
-          </label>
-          <div class="input-with-suffix">
-            <input v-model.number="form.taxPercent" class="input-field" type="number" min="0" max="100" step="0.5" />
-            <span class="suffix">%</span>
-          </div>
         </div>
       </div>
     </div>
@@ -111,8 +80,7 @@ const handleSave = async () => {
 
 .alert-success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: #059669; padding: 0.75rem 1.25rem; border-radius: 12px; margin-bottom: 1.5rem; font-size: 0.9rem; font-weight: 600; }
 
-.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-@media (max-width: 768px) { .settings-grid { grid-template-columns: 1fr; } }
+.settings-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; max-width: 600px; }
 
 .settings-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 1.75rem; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
 .module-page[data-theme="dark"] .settings-card { background: #1e293b; border-color: #334155; }
