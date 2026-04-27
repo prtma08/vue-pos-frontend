@@ -5,11 +5,11 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // ─── Mock Data (roles[] array format, synced with auth.js) ────────────────────
 const MOCK_USERS = [
-    { id: 'mock-user-5', name: 'Super Admin', username: 'superuser', roles: ['SUPERUSER', 'ADMIN', 'CASHIER'], isActive: true, createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'mock-user-1', name: 'Administrator', username: 'admin', roles: ['ADMIN', 'CASHIER'], isActive: true, createdAt: '2024-01-01T00:00:00.000Z' },
-    { id: 'mock-user-2', name: 'Supervisor Utama', username: 'supervisor', roles: ['SUPERVISOR', 'CASHIER'], isActive: true, createdAt: '2024-01-05T00:00:00.000Z' },
-    { id: 'mock-user-3', name: 'Kasir 1', username: 'kasir', roles: ['CASHIER'], isActive: true, createdAt: '2024-01-10T00:00:00.000Z' },
-    { id: 'mock-user-4', name: 'Kasir 2', username: 'kasir2', roles: ['CASHIER'], isActive: false, createdAt: '2024-01-15T00:00:00.000Z' },
+    { id: 'mock-user-5', name: 'Super Admin', username: 'superuser', roles: ['SUPERUSER', 'ADMIN', 'CASHIER'], status: 'READY', createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'mock-user-1', name: 'Administrator', username: 'admin', roles: ['ADMIN', 'CASHIER'], status: 'READY', createdAt: '2024-01-01T00:00:00.000Z' },
+    { id: 'mock-user-2', name: 'Supervisor Utama', username: 'supervisor', roles: ['SUPERVISOR', 'CASHIER'], status: 'READY', createdAt: '2024-01-05T00:00:00.000Z' },
+    { id: 'mock-user-3', name: 'Kasir 1', username: 'kasir', roles: ['CASHIER'], status: 'READY', createdAt: '2024-01-10T00:00:00.000Z' },
+    { id: 'mock-user-4', name: 'Kasir 2', username: 'kasir2', roles: ['CASHIER'], status: 'SUSPENDED', createdAt: '2024-01-15T00:00:00.000Z' },
 ]
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -74,7 +74,11 @@ export const useUsersStore = defineStore('users', () => {
                     search: params.search || undefined,
                 }
             })
-            users.value = res.data.data ?? []
+            const items = res.data.data ?? []
+            users.value = items.map(u => ({
+                ...u,
+                status: u.isSuspended ? 'SUSPENDED' : 'READY'
+            }))
             if (res.data.meta) {
                 pagination.value = { ...pagination.value, ...res.data.meta }
             }
@@ -92,7 +96,7 @@ export const useUsersStore = defineStore('users', () => {
         loading.value = true
         if (USE_MOCK) {
             await new Promise(r => setTimeout(r, 300))
-            const newUser = { ...payload, id: `mock-user-${nextMockId++}`, isActive: true, createdAt: new Date().toISOString() }
+            const newUser = { ...payload, id: `mock-user-${nextMockId++}`, createdAt: new Date().toISOString() }
             delete newUser.password
             MOCK_USERS.push(newUser)
             users.value.push(newUser)
@@ -101,8 +105,18 @@ export const useUsersStore = defineStore('users', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.post('/users', payload)
-            const created = { ...payload, ...(res.data.data ?? res.data) }
+            const apiPayload = { ...payload }
+            if (apiPayload.status !== undefined) {
+                apiPayload.isSuspended = apiPayload.status === 'SUSPENDED'
+                delete apiPayload.status
+            }
+            const res = await apiClient.post('/users', apiPayload)
+            const createdData = res.data.data ?? res.data
+            const created = {
+                ...payload,
+                ...createdData,
+                status: createdData.isSuspended !== undefined ? (createdData.isSuspended ? 'SUSPENDED' : 'READY') : payload.status
+            }
             users.value.push(created)
             return { success: true, data: created }
         } catch (err) {
@@ -128,9 +142,22 @@ export const useUsersStore = defineStore('users', () => {
         }
         try {
             const { default: apiClient } = await import('@/api/client')
-            const res = await apiClient.put(`/users/${id}`, payload)
+            const apiPayload = { ...payload }
+            if (apiPayload.status !== undefined) {
+                apiPayload.isSuspended = apiPayload.status === 'SUSPENDED'
+                delete apiPayload.status
+            }
+            const res = await apiClient.put(`/users/${id}`, apiPayload)
             const idx = users.value.findIndex(u => u.id === id)
-            if (idx !== -1) users.value[idx] = { ...users.value[idx], ...payload, ...(res.data.data ?? res.data) }
+            if (idx !== -1) {
+                const updatedData = res.data.data ?? res.data
+                users.value[idx] = {
+                    ...users.value[idx],
+                    ...payload,
+                    ...updatedData,
+                    status: updatedData.isSuspended !== undefined ? (updatedData.isSuspended ? 'SUSPENDED' : 'READY') : payload.status
+                }
+            }
             return { success: true }
         } catch (err) {
             const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'

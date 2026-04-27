@@ -25,7 +25,8 @@
     <!-- Table -->
     <div class="table-card">
       <div v-if="store.loading" class="state-loading"><span class="spinner-ring"></span><span>Memuat data...</span></div>
-      <table v-else class="data-table">
+      <div v-else class="table-responsive">
+        <table class="data-table">
         <thead>
           <tr><th>#</th><th>Nama Diskon</th><th>Jenis</th><th>Nilai</th><th>Target</th><th>Periode</th><th>Status</th><th>Aksi</th></tr>
         </thead>
@@ -55,6 +56,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
       
       <AppPagination 
         :current-page="store.pagination.page"
@@ -116,7 +118,7 @@
                 </div>
               </div>
               <div class="form-group">
-                <label class="form-label">Level <span class="req">*</span></label>
+                <label class="form-label">Target <span class="req">*</span></label>
                 <select v-model="form.level" class="input-field" required>
                   <option v-for="t in store.DISCOUNT_LEVELS" :key="t.value" :value="t.value">{{ t.label }}</option>
                 </select>
@@ -288,7 +290,7 @@ const validationRules = () => {
 
 const isValid = computed(() => isFormValid(validationRules()))
 
-onMounted(() => { store.fetchAll(); productsStore.fetchProducts() })
+onMounted(() => { store.fetchAll(); productsStore.fetchProducts({ limit: 1000 }) })
 
 // Products excluding already-selected
 const availableProducts = computed(() =>
@@ -338,9 +340,9 @@ const handleSubmit = async () => {
   const { valid, errors } = validateAll(validationRules())
   Object.assign(fieldErrors, errors)
   if (!valid) return
-  // Validasi: Per Produk wajib punya minimal 1 produk
+  // Validasi: Produk wajib punya minimal 1 produk
   if (form.level === 'product' && form.appliedProductIds.length === 0) {
-    formError.value = 'Level "Per Produk" wajib memilih minimal 1 produk'
+    formError.value = 'Target "Produk" wajib memilih minimal 1 produk'
     return
   }
   const payload = {
@@ -368,8 +370,8 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 }
 .module-page[data-theme="dark"] { background: linear-gradient(135deg, #0f172a, #1e293b); }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem; }
-.page-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 2rem; font-weight: 700; background: linear-gradient(135deg, #1e293b, #475569); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
-.module-page[data-theme="dark"] .page-title { background: linear-gradient(135deg, #f1f5f9, #cbd5e1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.page-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 2rem; font-weight: 700; background: linear-gradient(135deg, #1e293b, #475569); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
+.module-page[data-theme="dark"] .page-title { background: linear-gradient(135deg, #f1f5f9, #cbd5e1); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .page-subtitle { font-size: 0.9rem; color: #64748b; margin-top: 0.375rem; }
 .module-page[data-theme="dark"] .page-subtitle { color: #94a3b8; }
 
@@ -394,7 +396,8 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 
 .table-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px -10px rgba(0,0,0,0.1); }
 .module-page[data-theme="dark"] .table-card { background: #1e293b; border-color: #334155; }
-.data-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.data-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 800px; }
 .data-table th { padding: 1rem 1.5rem; background: #f8fafc; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; text-align: left; border-bottom: 2px solid #e2e8f0; }
 .module-page[data-theme="dark"] .data-table th { background: #0f172a; color: #94a3b8; border-bottom-color: #334155; }
 .data-table td { padding: 1.25rem 1.5rem; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; color: #334155; vertical-align: middle; }
@@ -487,9 +490,7 @@ const handleDelete = async () => { const r = await store.remove(deleteTarget.val
 .module-page[data-theme="dark"] .toggle-text { color: #cbd5e1; }
 .module-page[data-theme="dark"] .toggle-slider { background: #334155; }
 
-/* ── Fix background-clip lint ── */
-.page-title { background: linear-gradient(135deg, #1e293b, #475569); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.module-page[data-theme="dark"] .page-title { background: linear-gradient(135deg, #f1f5f9, #cbd5e1); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+
 
 /* ── Product Picker Section ── */
 .product-picker-section {

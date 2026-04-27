@@ -16,15 +16,7 @@
       <!-- Stock & Expiry Settings -->
       <div class="settings-card">
         <h3 class="card-section-title">📦 Stok & Kadaluarsa</h3>
-        <div class="form-group">
-          <label class="form-label">Ambang Stok Menipis (unit)
-            <span class="form-hint">Produk di bawah nilai ini dianggap "Stok Menipis"</span>
-          </label>
-          <div class="input-with-suffix">
-            <input v-model.number="form.lowStockThreshold" class="input-field" type="number" min="1" max="1000" />
-            <span class="suffix">unit</span>
-          </div>
-        </div>
+
         <!-- D2: Expiry notification threshold -->
         <div class="form-group">
           <label class="form-label">Notifikasi Produk Kadaluarsa

@@ -73,12 +73,7 @@
             Rp {{ formatCurrency(Math.abs(b.price - (b.hppAverage || 0))) }}
           </span>
         </div>
-        <div class="bundle-stock" :class="(b.totalStock ?? 0) <= 5 ? 'stock-low' : 'stock-ok'">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-          </svg>
-          Stok: {{ b.totalStock ?? 0 }}
-        </div>
+
       </div>
     </div>
 
@@ -132,24 +127,6 @@
                   @input="fieldErrors.sku = ''"
                 />
                 <span v-if="touched.sku && fieldErrors.sku" class="field-error">{{ fieldErrors.sku }}</span>
-              </div>
-
-              <!-- ► Kategori -->
-              <div class="form-group">
-                <label class="form-label">Kategori <span class="req">*</span></label>
-                <select 
-                  v-model="form.categoryId" 
-                  class="input-field" 
-                  :class="{ 'input-error': touched.categoryId && fieldErrors.categoryId }"
-                  @blur="touched.categoryId = true"
-                  @change="fieldErrors.categoryId = ''"
-                >
-                  <option value="" disabled>-- Pilih Kategori --</option>
-                  <option v-for="cat in categoriesStore.categories" :key="cat.id" :value="cat.id">
-                    {{ cat.name }}
-                  </option>
-                </select>
-                <span v-if="touched.categoryId && fieldErrors.categoryId" class="field-error">{{ fieldErrors.categoryId }}</span>
               </div>
 
               <!-- ► Upload Gambar -->
@@ -228,32 +205,19 @@
                 </div>
               </div>
 
-              <!-- ► Harga & Stok -->
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">Harga Jual Paket <span class="req">*</span></label>
-                  <input 
-                    v-model.number="form.bundlePrice" 
-                    class="input-field" 
-                    :class="{ 'input-error': touched.bundlePrice && fieldErrors.bundlePrice }"
-                    type="number" 
-                    min="1"
-                    @blur="touched.bundlePrice = true"
-                    @input="fieldErrors.bundlePrice = ''"
-                  />
-                  <span v-if="touched.bundlePrice && fieldErrors.bundlePrice" class="field-error">{{ fieldErrors.bundlePrice }}</span>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Stok Paket <span class="req">*</span></label>
-                  <input
-                    v-model.number="form.bundleStock"
-                    class="input-field"
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    @input="() => { if (form.bundleStock < 0) form.bundleStock = 0 }"
-                  />
-                </div>
+              <!-- ► Harga -->
+              <div class="form-group">
+                <label class="form-label">Harga Jual Paket <span class="req">*</span></label>
+                <input 
+                  v-model.number="form.bundlePrice" 
+                  class="input-field" 
+                  :class="{ 'input-error': touched.bundlePrice && fieldErrors.bundlePrice }"
+                  type="number" 
+                  min="1"
+                  @blur="touched.bundlePrice = true"
+                  @input="fieldErrors.bundlePrice = ''"
+                />
+                <span v-if="touched.bundlePrice && fieldErrors.bundlePrice" class="field-error">{{ fieldErrors.bundlePrice }}</span>
               </div>
 
               <!-- ► Profit / Loss Indicator -->
@@ -355,15 +319,13 @@ const calcTotalOriginal = (b) => {
 const form = reactive({
   name: '',
   sku: '',
-  categoryId: '',
   items: [{ productId: '', qty: 1, name: '', price: 0, hpp: 0 }],
   bundlePrice: 0,
-  bundleStock: 0,
   imageFile: null,
   imagePreview: null,
 })
-const fieldErrors = reactive({ name: '', sku: '', categoryId: '', bundlePrice: '', image: '' })
-const touched = reactive({ name: false, sku: false, categoryId: false, bundlePrice: false, image: false })
+const fieldErrors = reactive({ name: '', sku: '', bundlePrice: '', image: '' })
+const touched = reactive({ name: false, sku: false, bundlePrice: false, image: false })
 
 const validationRules = () => ({
   name: {
@@ -380,12 +342,6 @@ const validationRules = () => ({
     rules: [
       rules.required('SKU paket wajib diisi.'),
       rules.noSpecialChars('SKU hanya boleh berisi huruf dan angka.'),
-    ],
-  },
-  categoryId: {
-    value: form.categoryId,
-    rules: [
-      rules.required('Kategori paket wajib dipilih.'),
     ],
   },
   bundlePrice: {
@@ -495,14 +451,12 @@ const removeImage = () => {
 const openModal = async (b = null) => {
   editTarget.value = b
   formError.value  = ''
-  Object.assign(fieldErrors, { name: '', sku: '', categoryId: '', bundlePrice: '', image: '' })
-  Object.assign(touched, { name: false, sku: false, categoryId: false, bundlePrice: false, image: false })
+  Object.assign(fieldErrors, { name: '', sku: '', bundlePrice: '', image: '' })
+  Object.assign(touched, { name: false, sku: false, bundlePrice: false, image: false })
   if (b) {
     form.name         = b.name
     form.sku          = b.sku || ''
-    form.categoryId   = b.categoryId || ''
     form.bundlePrice  = b.price
-    form.bundleStock  = b.totalStock ?? 0
     form.imageFile    = null
     form.imagePreview = b.images?.[0] || null
     
@@ -529,9 +483,7 @@ const openModal = async (b = null) => {
   } else {
     form.name         = ''
     form.sku          = ''
-    form.categoryId   = ''
     form.bundlePrice  = 0
-    form.bundleStock  = 0
     form.items        = [{ productId: '', qty: 1, name: '', price: 0, hpp: 0 }]
     form.imageFile    = null
     form.imagePreview = null
@@ -552,13 +504,10 @@ const handleSubmit = async () => {
 
   const validItems = form.items.filter(c => c.productId && c.qty > 0)
   if (validItems.length < 2) { formError.value = 'Paket harus berisi minimal 2 produk'; return }
-  if (form.bundleStock < 0)  { formError.value = 'Stok paket tidak boleh negatif'; return }
 
   const bundleData = {
     name: form.name.trim(),
     sku: form.sku.trim(),
-    categoryId: form.categoryId,
-    totalStock: form.bundleStock,
     price: form.bundlePrice,
     components: validItems.map(c => ({ componentId: c.productId, qty: c.qty })),
     images: form.imageFile ? [form.imageFile] : undefined
@@ -596,7 +545,7 @@ const handleDelete = async () => {
 
 onMounted(async () => {
   await Promise.all([
-    productsStore.fetchProducts(),
+    productsStore.fetchProducts({ limit: 1000 }),
     bundlesStore.fetchAll(),
     categoriesStore.fetchAll()
   ])
@@ -660,10 +609,7 @@ onMounted(async () => {
 .chip-profit { background: rgba(5,150,105,0.12); color: #059669; }
 .chip-loss   { background: rgba(220,38,38,0.1); color: #dc2626; }
 
-.bundle-stock { display: flex; align-items: center; gap: 0.375rem; margin-top: 0.625rem; padding-top: 0.625rem; border-top: 1px solid #f1f5f9; font-size: 0.78rem; font-weight: 600; }
-.stock-ok { color: #059669; }
-.stock-low { color: #ef4444; }
-.module-page[data-theme="dark"] .bundle-stock { border-top-color: #334155; }
+
 
 /* Buttons */
 .btn { display: inline-flex; align-items: center; gap: 0.625rem; padding: 0.75rem 1.5rem; border-radius: 12px; font-size: 0.875rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.3s; }

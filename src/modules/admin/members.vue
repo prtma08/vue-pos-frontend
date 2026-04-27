@@ -103,7 +103,7 @@
                   :class="{ 'input-error': touched.phone && fieldErrors.phone }"
                   type="tel" 
                   placeholder="08xxxxxxxxxx" 
-                  maxlength="50"
+                  maxlength="20"
                   @blur="touched.phone = true"
                   @input="fieldErrors.phone = ''"
                 />
@@ -190,7 +190,14 @@ const validationRules = () => ({
     rules: [
       rules.noWhitespaceOnly('Input tidak boleh hanya berisi spasi.'),
       rules.required('Nomor Telepon perlu Anda isi terlebih dahulu.'),
-      rules.pattern(/^\+?[0-9\s\-]{8,50}$/, 'Nomor telepon tidak valid, gunakan 8-50 karakter angka, opsi dengan awalan + atau tanda -'),
+      rules.pattern(/^\+?[0-9\s\-]+$/, 'Gunakan hanya angka, spasi, awalan +, atau tanda - untuk nomor telepon.'),
+      (val) => {
+        if (!val) return ''
+        const digits = String(val).replace(/\D/g, '')
+        if (digits.length > 15) return 'Nomor telepon terlalu panjang (maksimal 15 digit angka).'
+        if (digits.length < 8) return 'Nomor telepon terlalu pendek (minimal 8 digit angka).'
+        return ''
+      },
       (val) => {
         if (!val) return ''
         const exists = store.members.find(m => m.phone === val && m.id !== editTarget.value?.id)

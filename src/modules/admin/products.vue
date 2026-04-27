@@ -164,7 +164,7 @@
         :total-pages="store.pagination.totalPages"
         :limit="store.pagination.limit"
         :total-items="store.pagination.totalItems"
-        @page-change="(p) => store.fetchProducts({ page: p })"
+        @page-change="(p) => store.fetchProducts({ page: p, limit: 10 })"
       />
     </div>
     <!-- ── Modal: Add / Edit ─────────────────────────────────────────────── -->
@@ -528,7 +528,7 @@ const isValid = computed(() => isFormValid(productValidationRules()))
 
 onMounted(async () => {
   await Promise.all([
-    store.fetchProducts(),
+    store.fetchProducts({ page: 1, limit: 10 }),
     store.fetchCategories(),
     pricelistStore.fetchPricelists(),
   ])

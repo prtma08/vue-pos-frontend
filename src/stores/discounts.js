@@ -52,9 +52,9 @@ const DISCOUNT_TYPES = [
 ]
 
 const DISCOUNT_LEVELS = [
-    { value: 'product', label: 'Per Produk' },
-    { value: 'member', label: 'Per Member' },
-    { value: 'transaction', label: 'Per Transaksi' },
+    { value: 'product', label: 'Produk' },
+    { value: 'member', label: 'Member' },
+    { value: 'transaction', label: 'Transaksi' },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,9 +96,9 @@ export const useDiscountsStore = defineStore('discounts', () => {
     }
 
     const getLevelLabel = (disc) => {
-        if (disc.isTransactionLevel) return 'Per Transaksi'
-        if (disc.isMemberLevel) return 'Per Member'
-        return 'Per Produk'
+        if (disc.isTransactionLevel) return 'Transaksi'
+        if (disc.isMemberLevel) return 'Member'
+        return 'Produk'
     }
 
     // ── fetchAll ───────────────────────────────────────────────────────────────

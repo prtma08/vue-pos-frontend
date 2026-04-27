@@ -87,7 +87,7 @@
               <button
                 class="action-btn expand-btn"
                 :class="{ 'is-expanded': expandedPlId === pl.id }"
-                @click="expandedPlId = expandedPlId === pl.id ? null : pl.id"
+                @click="toggleExpand(pl.id)"
                 title="Lihat / Edit Produk"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -149,8 +149,8 @@
                     <tr v-for="pli in pricelistStore.getItemsByPricelist(pl.id)" :key="pli.id">
                       <td class="col-prod-name">{{ pli.productName }}</td>
                       <td><code class="sku-chip">{{ pli.productSku || '—' }}</code></td>
-                      <td class="col-hpp">Rp {{ fmt(getProductHpp(pli.productId)) }}</td>
-                      <td class="col-normal">Rp {{ fmt(getProductNormalPrice(pli.productId)) }}</td>
+                      <td class="col-hpp">Rp {{ fmt(pli.hppSnapshot || getProductHpp(pli.productId)) }}</td>
+                      <td class="col-normal">Rp {{ fmt(pli.normalPrice || getProductNormalPrice(pli.productId)) }}</td>
                       <td>
                         <div class="event-price-wrap">
                           <span class="rp-prefix">Rp</span>
@@ -158,19 +158,21 @@
                             type="text"
                             :value="fmt(pli.newPrice)"
                             class="event-price-input"
-                            :class="{ 'input-loss': pli.newPrice < getProductHpp(pli.productId) }"
-                            @focus="$event.target.value = pli.newPrice || ''"
-                            @blur="$event.target.value = fmt(pli.newPrice)"
-                            @change="handleUpdateItemPrice(pli, $event.target.value)"
+                            :class="{ 'input-loss': Number(pli.newPrice) < (pli.hppSnapshot || getProductHpp(pli.productId)) }"
+                            @input="onItemPriceInput(pli, $event)"
+                            @change="handleUpdateItemPrice(pli, pli.newPrice)"
                           />
                         </div>
                       </td>
                       <td>
-                        <span v-if="pli.newPrice < getProductHpp(pli.productId)" class="loss-badge">
+                        <span v-if="Number(pli.newPrice) < (pli.hppSnapshot || getProductHpp(pli.productId))" class="loss-badge">
                           ⚠️ Di bawah HPP!
                         </span>
-                        <span v-else-if="pli.newPrice < getProductNormalPrice(pli.productId)" class="discount-badge">
+                        <span v-else-if="Number(pli.newPrice) < (pli.normalPrice || getProductNormalPrice(pli.productId))" class="discount-badge">
                           ↓ Diskon {{ discountPct(pli) }}%
+                        </span>
+                        <span v-else-if="Number(pli.newPrice) > (pli.normalPrice || getProductNormalPrice(pli.productId))" class="markup-badge">
+                          ↑ Profit Ekstra ({{ markupPct(pli) }}%)
                         </span>
                         <span v-else class="neutral-badge">= Harga Normal</span>
                       </td>
@@ -351,6 +353,31 @@
         </div>
     </transition>
 
+    <!-- ── Modal: Hapus Produk dari Pricelist ────────────────────────── -->
+    <transition name="modal-fade">
+      <div v-if="showDeleteConfirmModal" class="modal-overlay" @click.self="showDeleteConfirmModal = false">
+        <div class="modal-box" style="max-width: 400px; text-align: center; padding: 2rem;">
+          <div class="delete-icon" style="color: var(--danger); margin-bottom: 1rem;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">Hapus Produk?</h2>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.5rem;">
+            Apakah Anda yakin ingin menghapus <strong>{{ deleteTargetPli?.productName }}</strong> dari event ini? Aksi ini akan mengembalikan produk ke harga normalnya.
+          </p>
+          <div style="display: flex; gap: 0.75rem; justify-content: center;">
+            <button type="button" class="btn btn-ghost" @click="showDeleteConfirmModal = false" style="flex: 1; justify-content: center;">Batal</button>
+            <button type="button" class="btn btn-danger" @click="confirmDeletePli" :disabled="pricelistStore.loading" style="flex: 1; justify-content: center;">
+              <span v-if="pricelistStore.loading" class="spinner-sm"></span>
+              Hapus
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
   </div>
 </template>
 
@@ -384,7 +411,13 @@ const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 
 onMounted(async () => {
-  await Promise.all([productsStore.fetchProducts(), pricelistStore.fetchPricelists()])
+  // Seed normalPriceCache first (before fetchPricelists might contaminate it via active-event override)
+  // This captures the true selling price from productsStore right after /products is fetched
+  await productsStore.fetchProducts({ limit: 1000 })
+  productsStore.products.forEach(p => {
+    pricelistStore.seedNormalPrice(p.id, p.sellingPrice ?? p.price ?? 0, p.hpp ?? 0)
+  })
+  await pricelistStore.fetchPricelists()
 })
 
 const fmt = (n) => (n ?? 0).toLocaleString('id-ID')
@@ -406,7 +439,18 @@ const onAddItemPriceInput = (e) => {
   addItemForm.newPrice = val
   e.target.value = val > 0 ? fmt(val) : ''
 
-  // Attempt to restore cursor roughly
+  const diff = e.target.value.length - origLen
+  e.target.setSelectionRange(cursor + diff, cursor + diff)
+}
+
+const onItemPriceInput = (pli, e) => {
+  const cursor = e.target.selectionStart
+  const origLen = e.target.value.length
+
+  const val = parseNumber(e.target.value)
+  pli.newPrice = val
+  e.target.value = val > 0 ? fmt(val) : ''
+
   const diff = e.target.value.length - origLen
   e.target.setSelectionRange(cursor + diff, cursor + diff)
 }
@@ -414,16 +458,24 @@ const onAddItemPriceInput = (e) => {
 // ── Product helpers ───────────────────────────────────────────────────────────
 const getProductHpp = (productId) => {
   const p = productsStore.getProductById(productId)
-  return p?.hpp ?? 0
+  return Number(p?.hpp ?? 0)
 }
 const getProductNormalPrice = (productId) => {
+  // Fallback to localStorage cache or productsStore
+  const cached = pricelistStore.getCachedNormalPrice(productId)
+  if (cached) return cached
   const p = productsStore.getProductById(productId)
-  return p?.sellingPrice ?? p?.price ?? 0
+  return Number(p?.sellingPrice ?? p?.price ?? 0)
+}
+const markupPct = (pli) => {
+  const normal = pli.normalPrice || getProductNormalPrice(pli.productId)
+  if (!normal) return 0
+  return Math.round((Number(pli.newPrice) / normal - 1) * 100)
 }
 const discountPct = (pli) => {
-  const normal = getProductNormalPrice(pli.productId)
+  const normal = pli.normalPrice || getProductNormalPrice(pli.productId)
   if (!normal) return 0
-  return Math.round((1 - pli.newPrice / normal) * 100)
+  return Math.round((1 - Number(pli.newPrice) / normal) * 100)
 }
 
 // ── Pricelist CRUD state ──────────────────────────────────────────────────────
@@ -459,6 +511,15 @@ const availableProductsForPl = computed(() => {
 })
 
 // ── Pricelist handlers ────────────────────────────────────────────────────────
+const toggleExpand = async (id) => {
+  if (expandedPlId.value === id) {
+    expandedPlId.value = null
+  } else {
+    expandedPlId.value = id
+    await pricelistStore.fetchPricelistById(id)
+  }
+}
+
 const openPlModal = (pl = null) => {
   plEditTarget.value = pl
   plFormError.value  = ''
@@ -540,9 +601,22 @@ const handleUpdateItemPrice = async (pli, rawValue) => {
   await pricelistStore.updatePricelistItem(pli.id, newPrice)
 }
 
-const handleRemovePlItem = async (pli) => {
-  if (confirm(`Hapus "${pli.productName}" dari pricelist ini?`)) {
-    await pricelistStore.removePricelistItem(pli.id)
+const showDeleteConfirmModal = ref(false)
+const deleteTargetPli = ref(null)
+
+const handleRemovePlItem = (pli) => {
+  deleteTargetPli.value = pli
+  showDeleteConfirmModal.value = true
+}
+
+const confirmDeletePli = async () => {
+  if (!deleteTargetPli.value) return
+  const result = await pricelistStore.removePricelistItem(deleteTargetPli.value.id)
+  if (result.success) {
+    showDeleteConfirmModal.value = false
+    deleteTargetPli.value = null
+  } else {
+    alert(result.message) // fallback error since modal doesn't have an error state
   }
 }
 </script>
@@ -785,10 +859,79 @@ const handleRemovePlItem = async (pli) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
 }
 .pl-items-title-wrap { display: flex; align-items: center; gap: 0.5rem; color: var(--text-secondary); }
 .pl-items-title { font-weight: 600; font-size: 0.875rem; color: var(--text-primary); }
+
+.pl-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
+.pl-items-table th {
+  background: rgba(99,102,241,0.04);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.8rem 1.25rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(99,102,241,0.1);
+}
+.pl-items-table td {
+  padding: 1rem 1.25rem;
+  font-size: 0.875rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+.pl-items-table tr:last-child td { border-bottom: none; }
+
+.event-price-wrap {
+  display: flex;
+  align-items: center;
+  background: var(--surface-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 0.75rem;
+  width: 140px;
+  transition: var(--transition);
+}
+.event-price-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--surface);
+}
+.rp-prefix { color: var(--text-tertiary); font-weight: 600; font-size: 0.8rem; }
+.event-price-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: inherit;
+  outline: none;
+}
+.event-price-input.input-loss {
+  color: var(--danger);
+}
+
+.markup-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  background: var(--success-soft);
+  color: var(--success);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 .btn-add-item {
   display: inline-flex;
@@ -1047,6 +1190,13 @@ const handleRemovePlItem = async (pli) => {
   color: var(--text-secondary);
 }
 .btn-ghost:hover { background: var(--surface-elevated); }
+.btn-danger {
+  background: var(--danger);
+  color: #ffffff;
+}
+.btn-danger:hover {
+  background: #b91c1c;
+}
 
 /* ── Spinner ────────────────────────────────────────────────────── */
 .spinner-sm {

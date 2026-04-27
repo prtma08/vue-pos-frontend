@@ -77,14 +77,13 @@
         </tbody>
         </table>
       </div>
-    </div>
       
       <AppPagination 
         :current-page="store.pagination.page"
         :total-pages="store.pagination.totalPages"
         :limit="store.pagination.limit"
         :total-items="store.pagination.totalItems"
-        @page-change="(p) => store.fetchUsers({ page: p })"
+        @page-change="(p) => store.fetchAll({ page: p })"
       />
     </div>
 
@@ -98,6 +97,7 @@
               <button class="modal-close" @click="closeModal">×</button>
             </div>
             <form @submit.prevent="handleSubmit" class="modal-form">
+              <div class="modal-body-scrollable">
               <div class="form-group">
                 <label class="form-label">Nama Lengkap <span class="required">*</span></label>
                 <input 
@@ -147,18 +147,25 @@
                   Password {{ editTarget ? '(Opsional - isi untuk mengubah)' : '' }}
                   <span v-if="!editTarget" class="required">*</span>
                 </label>
-                <input 
-                  v-model="form.password" 
-                  class="input-field" 
-                  :class="{ 'input-error': touched.password && fieldErrors.password }"
-                  type="password" 
-                  placeholder="Min. 8 char, uppercase, lowercase, angka" 
-                  @blur="touched.password = true"
-                  @input="fieldErrors.password = ''"
-                />
+                <div class="password-wrapper">
+                  <input 
+                    v-model="form.password" 
+                    class="input-field password-input" 
+                    :class="{ 'input-error': touched.password && fieldErrors.password }"
+                    :type="showPassword ? 'text' : 'password'" 
+                    placeholder="Min. 8 char, uppercase, lowercase, angka" 
+                    @blur="touched.password = true"
+                    @input="fieldErrors.password = ''"
+                  />
+                  <button type="button" class="toggle-password-btn" @click="showPassword = !showPassword" tabindex="-1" title="Tampilkan/Sembunyikan Kata Sandi">
+                    <svg v-if="showPassword" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                    <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                </div>
                 <span v-if="touched.password && fieldErrors.password" class="field-error">{{ fieldErrors.password }}</span>
               </div>
               <div v-if="formError" class="form-error">{{ formError }}</div>
+              </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
                 <button type="submit" class="btn btn-primary" :disabled="store.loading">
@@ -206,6 +213,7 @@ const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 
 const showModal = ref(false)
+const showPassword = ref(false)
 const editTarget = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
@@ -274,6 +282,7 @@ const openModal = (u = null) => {
     password: '',
     status: u?.status || 'READY'
   })
+  showPassword.value = false
   showModal.value = true
 }
 const closeModal = () => { showModal.value = false; editTarget.value = null }
@@ -301,6 +310,55 @@ const handleDelete = async () => {
 </script>
 
 <style scoped>
+/* ── Mengatasi Scroll Modal & Password ───────────────────────────────────────────── */
+.modal-body-scrollable {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  margin-bottom: 1rem;
+}
+.modal-body-scrollable::-webkit-scrollbar {
+  width: 6px;
+}
+.modal-body-scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}
+.modal-body-scrollable::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+.module-page[data-theme="dark"] .modal-body-scrollable::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.password-wrapper .password-input {
+  padding-right: 2.5rem;
+}
+.toggle-password-btn {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+.toggle-password-btn:hover {
+  color: #6366f1;
+}
+.module-page[data-theme="dark"] .toggle-password-btn:hover {
+  color: #818cf8;
+}
+
 /* ── Modern Design System ───────────────────────────────────────────── */
 .module-page {
   padding: 2.5rem;

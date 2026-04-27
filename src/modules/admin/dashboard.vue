@@ -141,7 +141,7 @@
               <span class="value-main">{{ expiringSoonCount }}</span>
               <span class="value-suffix">produk</span>
             </div>
-            <div class="metric-absolute">dalam 30 hari ke depan</div>
+            <div class="metric-absolute">dalam {{ settingsStore.settings.expiryNotificationDays || 30 }} hari ke depan</div>
             <div class="metric-action" v-if="expiringSoonCount > 0">
               <router-link to="/admin/expired" class="action-link">Lihat Laporan →</router-link>
             </div>
@@ -560,11 +560,13 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useProductsStore } from '@/stores/products'
 import { useStaffStore } from '@/stores/staff'
+import { useSettingsStore } from '@/stores/settings'
 import { useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
 const productsStore = useProductsStore()
 const staffStore = useStaffStore()
+const settingsStore = useSettingsStore()
 const router = useRouter()
 
 // Theme is controlled by MainLayout — read it for CSS variable bindings only
@@ -588,7 +590,7 @@ const lowStockProducts = computed(() => productsStore.lowStockProducts)
 const lowStockThreshold = computed(() => productsStore.lowStockThreshold)
 
 // B6: Expired products alert
-const expiringSoon = computed(() => productsStore.getExpiringProducts(30))
+const expiringSoon = computed(() => productsStore.getExpiringProducts(settingsStore.settings.expiryNotificationDays || 30))
 const expiringSoonCount = computed(() => expiringSoon.value.length)
 
 // D5: Stock visual report
@@ -756,7 +758,7 @@ const handleRestock = (product) => {
 // Initialize
 onMounted(async () => {
   await Promise.all([
-    productsStore.fetchProducts(),
+    productsStore.fetchProducts({ limit: 1000 }),
     staffStore.fetchStaff(),
   ])
   stats.value.lowStockCount = productsStore.lowStockProducts.length

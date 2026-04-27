@@ -149,11 +149,11 @@
       </div>
     </div>
 
-    <!-- Modal Form Detail & Stok -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div v-if="showModal" class="modal-teleport-wrapper" :data-theme="theme">
-          <div class="modal-overlay" @click.self="closeModal">
+    <!-- Modals -->
+    <!-- Modal: Add/Edit -->
+    <transition name="modal-fade">
+      <div v-if="showModal" class="modal-teleport-wrapper">
+        <div class="modal-overlay" @click.self="closeModal">
           <div class="modal-box">
             <div class="modal-header">
               <div>
@@ -233,7 +233,55 @@
         </div>
         </div>
       </transition>
-    </Teleport>
+
+      <!-- Modal Batal Transaksi (Hapus) -->
+      <transition name="modal-fade">
+        <div v-if="showCancelModal" class="modal-overlay" @click.self="showCancelModal = false">
+          <div class="modal-box" style="max-width: 400px; text-align: center; padding: 2rem;">
+            <div class="delete-icon" style="color: var(--danger); margin-bottom: 1rem;">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">Batalkan Transaksi?</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.5rem;">
+              Apakah Anda yakin ingin membatalkan transaksi ini? Data pembelian akan dihapus dari daftar tunggu.
+            </p>
+            <div style="display: flex; gap: 0.75rem; justify-content: center;">
+              <button type="button" class="btn btn-ghost" @click="showCancelModal = false" style="flex: 1; justify-content: center;">Kembali</button>
+              <button type="button" class="btn btn-danger" style="flex: 1; justify-content: center;" @click="executeCancelTask" :disabled="isActionLoading === cancelTargetId">
+                <span v-if="isActionLoading === cancelTargetId" class="spinner-sm"></span>
+                <span v-else>Ya, Batalkan</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+
+      <!-- Modal Konfirmasi Transaksi -->
+      <transition name="modal-fade">
+        <div v-if="showConfirmModal" class="modal-overlay" @click.self="showConfirmModal = false">
+          <div class="modal-box" style="max-width: 400px; text-align: center; padding: 2rem;">
+            <div class="delete-icon" style="color: var(--success); margin-bottom: 1rem;">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+            <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">Konfirmasi Pembelian?</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.5rem;">
+              Apakah Anda yakin ingin mengkonfirmasi? Stok produk akan otomatis bertambah, dan tindakan ini tak bisa diedit kembali.
+            </p>
+            <div style="display: flex; gap: 0.75rem; justify-content: center;">
+              <button type="button" class="btn btn-ghost" @click="showConfirmModal = false" style="flex: 1; justify-content: center;">Batal</button>
+              <button type="button" class="btn" style="background: var(--success); color: white; flex: 1; justify-content: center;" @click="executeConfirmTask" :disabled="isActionLoading === confirmTargetId">
+                <span v-if="isActionLoading === confirmTargetId" class="spinner-sm"></span>
+                <span v-else>Konfirmasi</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
 
   </div>
 </template>
@@ -275,9 +323,26 @@ const formError = ref('')
 const form = reactive({ id: null, qty: 0, purchasePrice: 0, expiryDate: '', notes: '' })
 const isActionLoading = ref(null)
 
+const showCancelModal = ref(false)
+const cancelTargetId = ref(null)
+
+const showConfirmModal = ref(false)
+const confirmTargetId = ref(null)
+
 const needsExpiry = computed(() => {
-  if (!activeProduct.value?.categoryId) return false
-  const cat = categoriesStore.categories.find(c => c.id === activeProduct.value.categoryId)
+  let p = activeProduct.value
+  if (!p) return false
+
+  // Referensikan ke data produk utuh di store untuk memastikan info kategori (seperti hasExpiry) tersedia
+  const storeProduct = productsStore.products.find(prod => prod.id === p.id)
+  if (storeProduct) p = storeProduct
+
+  if (p.category && typeof p.category.hasExpiry !== 'undefined') {
+    return p.category.hasExpiry === true
+  }
+  const catId = p.categoryId || p.category?.id
+  if (!catId) return false
+  const cat = categoriesStore.categories.find(c => c.id === catId)
   return cat?.hasExpiry === true
 })
 
@@ -357,11 +422,17 @@ const handleSaveModal = async () => {
   }
 }
 
-const handleCancelTask = async (id) => {
-  if(!confirm('Apakah Anda yakin ingin membatalkan transaksi ini?\nData akan dihapus.')) return
+const handleCancelTask = (id) => {
+  cancelTargetId.value = id
+  showCancelModal.value = true
+}
+
+const executeCancelTask = async () => {
+  const id = cancelTargetId.value
   isActionLoading.value = id
   const res = await purchaseStore.deletePurchaseOrder(id)
   isActionLoading.value = null
+  showCancelModal.value = false
   if(res.success) {
     showToast('success', 'Transaksi Dibatalkan', 'Item telah dihapus dari daftar tunggu.')
   } else {
@@ -369,15 +440,21 @@ const handleCancelTask = async (id) => {
   }
 }
 
-const handleConfirmTask = async (id) => {
-  if(!confirm('Apakah Anda yakin KONFIRMASI? Stok produk akan otomatis bertambah, dan tindakan tak bisa diedit.')) return
+const handleConfirmTask = (id) => {
+  confirmTargetId.value = id
+  showConfirmModal.value = true
+}
+
+const executeConfirmTask = async () => {
+  const id = confirmTargetId.value
   isActionLoading.value = id
   const res = await purchaseStore.confirmPurchaseOrder(id)
   isActionLoading.value = null
+  showConfirmModal.value = false
   if(res.success) {
     showToast('success', 'Sukses Terkonfirmasi', 'Stok berhasil ditambah dan disimpan ke Riwayat.')
     // Silently refresh products to sync updated stock logic for combobox display
-    if(productsStore.fetchProducts) productsStore.fetchProducts()
+    if(productsStore.fetchProducts) productsStore.fetchProducts({ limit: 1000 })
   } else {
     showToast('danger', 'Gagal', res.message)
   }
@@ -396,7 +473,7 @@ const fmtDateShort = (iso) => {
 
 onMounted(async () => {
   await Promise.all([
-    productsStore.fetchProducts(), 
+    productsStore.fetchProducts({ limit: 1000 }),
     categoriesStore.fetchAll?.() || categoriesStore.fetchCategories?.(),
     purchaseStore.fetchPurchaseOrders()
   ])

@@ -9,22 +9,27 @@ const MOCK_ACCOUNTS = [
   {
     username: 'superuser',
     password: 'super123',
-    user: { id: 'mock-user-5', name: 'Super Admin', username: 'superuser', roles: ['SUPERUSER', 'ADMIN', 'CASHIER'] },
+    user: { id: 'mock-user-5', name: 'Super Admin', username: 'superuser', roles: ['SUPERUSER', 'ADMIN', 'CASHIER'], status: 'READY' },
   },
   {
     username: 'admin',
     password: 'admin123',
-    user: { id: 'mock-user-1', name: 'Administrator', username: 'admin', roles: ['ADMIN', 'CASHIER'] },
+    user: { id: 'mock-user-1', name: 'Administrator', username: 'admin', roles: ['ADMIN', 'CASHIER'], status: 'READY' },
   },
   {
     username: 'supervisor',
     password: 'supervisor123',
-    user: { id: 'mock-user-2', name: 'Supervisor Utama', username: 'supervisor', roles: ['SUPERVISOR', 'CASHIER'] },
+    user: { id: 'mock-user-2', name: 'Supervisor Utama', username: 'supervisor', roles: ['SUPERVISOR', 'CASHIER'], status: 'READY' },
   },
   {
     username: 'kasir',
     password: 'kasir123',
-    user: { id: 'mock-user-3', name: 'Kasir 1', username: 'kasir', roles: ['CASHIER'] },
+    user: { id: 'mock-user-3', name: 'Kasir 1', username: 'kasir', roles: ['CASHIER'], status: 'READY' },
+  },
+  {
+    username: 'kasir2',
+    password: 'kasir123',
+    user: { id: 'mock-user-4', name: 'Kasir 2', username: 'kasir2', roles: ['CASHIER'], status: 'SUSPENDED' },
   },
 ]
 
@@ -115,6 +120,12 @@ export const useAuthStore = defineStore('auth', () => {
 
       if (!account) {
         error.value = '[Mock] Username atau password salah.'
+        loading.value = false
+        return { success: false, message: error.value }
+      }
+
+      if (account.user.status === 'SUSPENDED') {
+        error.value = 'Akun Anda telah ditangguhkan.'
         loading.value = false
         return { success: false, message: error.value }
       }
@@ -360,6 +371,11 @@ export const useAuthStore = defineStore('auth', () => {
     if (!session || !userData) {
       clearAuth()
       return { success: false }
+    }
+
+    if (userData.status === 'SUSPENDED') {
+      clearAuth()
+      return { success: false, message: 'Akun Anda telah ditangguhkan.' }
     }
 
     user.value = userData

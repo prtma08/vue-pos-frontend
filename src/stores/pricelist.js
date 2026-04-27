@@ -53,10 +53,39 @@ export const usePricelistStore = defineStore('pricelist', () => {
         id: pli?.ID ?? pli?.id ?? '',
         pricelistId: pli?.PricelistId ?? pli?.PricelistID ?? pli?.pricelistId ?? plId ?? '',
         productId: pli?.ProductId ?? pli?.ProductID ?? pli?.productId ?? '',
-        productName: pli?.ProductName ?? pli?.productName ?? '',
-        productSku: pli?.ProductSku ?? pli?.ProductSKU ?? pli?.productSku ?? '',
-        newPrice: pli?.NewPrice ?? pli?.newPrice ?? 0
+        productName: pli?.product?.name ?? pli?.ProductName ?? pli?.productName ?? '',
+        productSku: pli?.product?.sku ?? pli?.ProductSku ?? pli?.ProductSKU ?? pli?.productSku ?? '',
+        newPrice: Number(pli?.NewPrice ?? pli?.newPrice ?? 0),
+        // Snapshot the true normal price & HPP from the product object embedded in the item response.
+        // This is immune to the backend active-pricelist price override on the main /products endpoint.
+        normalPrice: Number(pli?.product?.price ?? pli?.product?.sellingPrice ?? pli?.ProductPrice ?? pli?.normalPrice ?? 0),
+        hppSnapshot: Number(pli?.product?.hppAverage ?? pli?.product?.hpp ?? pli?.HPP ?? pli?.hppSnapshot ?? 0),
     })
+
+    /**
+     * Persistent cache of { [productId]: { normalPrice, hpp } } stored in localStorage.
+     * This allows us to remember the REAL selling price of each product independent of
+     * whether the backend's /products endpoint overrides it with an active event price.
+     */
+    const CACHE_KEY = 'nx-price-base-cache'
+    const normalPriceCache = ref(
+        (() => { try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}') } catch { return {} } })()
+    )
+    const persistCache = () => {
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(normalPriceCache.value)) } catch { }
+    }
+    /**
+     * Seed the cache for a product from the productsStore.
+     * Should be called BEFORE the active pricelist can override the product's price.
+     */
+    const seedNormalPrice = (productId, normalPrice, hpp) => {
+        if (!normalPriceCache.value[productId]) {
+            normalPriceCache.value[productId] = { normalPrice: Number(normalPrice || 0), hpp: Number(hpp || 0) }
+            persistCache()
+        }
+    }
+    const getCachedNormalPrice = (productId) => normalPriceCache.value[productId]?.normalPrice ?? 0
+    const getCachedHpp = (productId) => normalPriceCache.value[productId]?.hpp ?? 0
 
     // ── Computed ──────────────────────────────────────────────────────────────
     const activePricelist = computed(() =>
@@ -114,15 +143,17 @@ export const usePricelistStore = defineStore('pricelist', () => {
             pricelists.value = Array.isArray(rawPls) ? rawPls.map(normalizePricelist) : []
 
             const newItems = []
-            if (Array.isArray(rawPls)) {
-                rawPls.forEach(pl => {
-                    const plId = pl?.ID ?? pl?.id
-                    if (Array.isArray(pl.items)) {
-                        pl.items.forEach(item => {
-                            newItems.push(normalizePricelistItem(item, plId))
-                        })
-                    }
-                })
+
+            // Auto fetch active pricelist explicitly to init cart prices correctly since index doesn't return items
+            const activePl = pricelists.value.find(p => p.isActive)
+            if (activePl) {
+                const activeRes = await apiClient.get(`/price-lists/${activePl.id}`).catch(() => null)
+                const detailedPl = activeRes?.data?.data ?? activeRes?.data
+                if (detailedPl && Array.isArray(detailedPl.items)) {
+                    detailedPl.items.forEach(item => {
+                        newItems.push(normalizePricelistItem(item, activePl.id))
+                    })
+                }
             }
             pricelistItems.value = newItems
             return { success: true }
@@ -132,6 +163,40 @@ export const usePricelistStore = defineStore('pricelist', () => {
             const validationErrors = err.response?.data?.errors || null
             error.value = errMsg
             return { success: false, message: errMsg, errors: validationErrors }
+        } finally { loading.value = false }
+    }
+
+    const fetchPricelistById = async (id) => {
+        loading.value = true
+        if (USE_MOCK) {
+            await new Promise(r => setTimeout(r, 150))
+            loading.value = false
+            return { success: true }
+        }
+        try {
+            const { default: apiClient } = await import('@/api/client')
+            const res = await apiClient.get(`/price-lists/${id}`)
+            const pl = res.data?.data ?? res.data
+            if (pl && Array.isArray(pl.items)) {
+                pricelistItems.value = pricelistItems.value.filter(i => i.pricelistId !== id)
+                const newItems = pl.items.map(item => {
+                    const normalized = normalizePricelistItem(item, id)
+                    // Backfill normalPrice/hppSnapshot from persistent localStorage cache if available
+                    // (set when the product was first-added to a pricelist or when products were first loaded)
+                    if (!normalized.normalPrice && getCachedNormalPrice(normalized.productId)) {
+                        normalized.normalPrice = getCachedNormalPrice(normalized.productId)
+                        normalized.hppSnapshot = getCachedHpp(normalized.productId)
+                    }
+                    return normalized
+                })
+                pricelistItems.value.push(...newItems)
+            }
+            return { success: true, data: pl }
+        } catch (err) {
+            console.error(err)
+            const errMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '') || err.response?.statusText || err.message || 'Terjadi kesalahan sistem'
+            error.value = errMsg
+            return { success: false, message: errMsg }
         } finally { loading.value = false }
     }
 
@@ -335,6 +400,10 @@ export const usePricelistStore = defineStore('pricelist', () => {
             return { success: true, data: newItem }
         }
         try {
+            // Seed normalPriceCache for this product using the product object from productsStore
+            // This is called BEFORE any backend PUT that might trigger overrides, so prices are accurate
+            seedNormalPrice(product.id, product.sellingPrice ?? product.price ?? 0, product.hpp ?? 0)
+
             // Need to build the entire new properties array
             const currentItems = pricelistItems.value.filter(i => i.pricelistId === pricelistId)
             const newItem = {
@@ -343,7 +412,9 @@ export const usePricelistStore = defineStore('pricelist', () => {
                 productId: product.id,
                 productName: product.name,
                 productSku: product.sku || '',
-                newPrice
+                newPrice,
+                normalPrice: getCachedNormalPrice(product.id),
+                hppSnapshot: getCachedHpp(product.id),
             }
 
             const nextItemsArray = [...currentItems, newItem]
@@ -434,6 +505,11 @@ export const usePricelistStore = defineStore('pricelist', () => {
         loading,
         error,
 
+        // Normal price cache (localStorage-backed)
+        seedNormalPrice,
+        getCachedNormalPrice,
+        getCachedHpp,
+
         // Computed
         activePricelist,
         hasActiveEvent,
@@ -445,6 +521,7 @@ export const usePricelistStore = defineStore('pricelist', () => {
 
         // Actions
         fetchPricelists,
+        fetchPricelistById,
         activatePricelist,
         deactivateAll,
         addPricelist,

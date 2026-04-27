@@ -58,7 +58,7 @@ const theme = ref(localStorage.getItem('nextore-theme') || 'light')
 window.addEventListener('nextore-theme-change', (e) => { theme.value = e.detail })
 const thresholdDays = ref(30)
 
-onMounted(() => productsStore.fetchProducts())
+onMounted(() => productsStore.fetchProducts({ limit: 1000 }))
 
 const expiringItems = computed(() => productsStore.getExpiringProducts(thresholdDays.value))
 const expiredCount = computed(() => expiringItems.value.filter(i => i.expiryStatus === 'expired').length)
