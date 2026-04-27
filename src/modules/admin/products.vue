@@ -44,9 +44,9 @@
       <div class="filter-row" style="width: 350px;">
         <AppCombobox
           v-model="store.filters.category"
-          :options="[{ name: null, label: 'Semua Kategori' }, ...store.categories.map(c => ({ name: c.name, label: c.name }))]"
-          option-key="name"
-          option-label="label"
+          :options="[{ id: null, name: 'Semua Kategori' }, ...store.categories]"
+          option-key="id"
+          option-label="name"
           placeholder="Filter Kategori..."
           :clearable="true"
         />

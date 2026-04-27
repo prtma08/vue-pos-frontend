@@ -160,8 +160,8 @@ export const useProductsStore = defineStore('products', () => {
         params: {
           page: params.page ?? pagination.value.page,
           limit: params.limit ?? pagination.value.limit,
-          search: params.search || undefined,
-          categoryId: params.categoryId || undefined,
+          search: params.search !== undefined ? params.search : (filters.value.searchTerm || undefined),
+          categoryId: params.categoryId !== undefined ? params.categoryId : (filters.value.category || undefined),
         }
       })
       const raw = response.data.data ?? []
@@ -683,8 +683,12 @@ export const useProductsStore = defineStore('products', () => {
   watch(() => filters.value.searchTerm, (newVal) => {
     clearTimeout(searchTimeout)
     searchTimeout = setTimeout(() => {
-      fetchProducts({ search: newVal, page: 1 })
+      fetchProducts({ page: 1 })
     }, 500)
+  })
+
+  watch(() => filters.value.category, () => {
+    fetchProducts({ page: 1 })
   })
 
   return {
