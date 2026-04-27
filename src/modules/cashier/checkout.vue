@@ -123,26 +123,36 @@
             @select="onComboProductSelect"
           />
 
-          <div class="category-pills">
-            <button
-              class="pill"
-              :class="{ 'is-active': !activeCategory }"
-              @click="setCategory(null)"
-            >Semua</button>
-            <button
-              v-for="cat in productsStore.categories"
-              :key="cat.id"
-              class="pill"
-              :class="{ 'is-active': activeCategory === cat.name }"
-              @click="setCategory(cat.name)"
-            >{{ cat.name }}</button>
+          <div class="filter-row" style="display: flex; gap: 0.75rem; margin-top: 0.25rem;">
+            <!-- Type Filter -->
+            <AppCombobox
+              v-model="activeProductType"
+              :options="[{value: '', label: 'Semua Tipe'}, {value: 'product', label: 'Produk Satuan'}, {value: 'bundle', label: 'Paket Bundle'}]"
+              option-key="value"
+              option-label="label"
+              placeholder="Semua Tipe"
+              :clearable="false"
+              style="flex: 1;"
+            />
+
+            <!-- Category Filter -->
+            <AppCombobox
+              v-model="activeCategory"
+              :options="[{id: '', name: 'Semua Kategori'}, ...productsStore.categories]"
+              option-key="id"
+              option-label="name"
+              placeholder="Semua Kategori"
+              :clearable="false"
+              style="flex: 1;"
+              @update:modelValue="onCategorySelect"
+            />
           </div>
         </div>
 
         <!-- Product Grid: Masonry-style -->
         <div class="catalog-grid">
           <div
-            v-for="product in filteredProducts"
+            v-for="product in paginatedProducts"
             :key="product.id"
             class="product-card"
             :class="{
@@ -153,7 +163,8 @@
             @click="(product.isBundle ? productsStore.getBundleMaxQty(product.id) : product.stock) > 0 && handleAddProduct(product)"
           >
             <div class="product-visual">
-              <span class="product-emoji">{{ productEmoji(product) }}</span>
+              <img v-if="product.images && product.images.length > 0" :src="product.images[0]" class="product-img" alt="Foto Produk" />
+              <span v-else class="product-emoji">{{ productEmoji(product) }}</span>
               <span v-if="product.isLowStock && product.stock > 0 && !product.isBundle" class="stock-flag flag-warning">Menipis</span>
               <span v-if="product.isBundle ? productsStore.getBundleMaxQty(product.id) <= 0 : product.stock === 0" class="stock-flag flag-out">Habis</span>
               <span v-if="product.hasLossAlert" class="stock-flag flag-loss" title="Harga jual < HPP">⚠️ Rugi</span>
@@ -183,6 +194,17 @@
             <p>Tidak ada produk yang cocok</p>
             <span class="empty-hint">Coba kata kunci lain atau pilih kategori berbeda</span>
           </div>
+        </div>
+
+        <!-- Catalog Pagination -->
+        <div class="catalog-pagination" v-if="totalCashierPages > 1">
+          <AppPagination 
+            :current-page="cashierPage"
+            :total-pages="totalCashierPages"
+            :limit="cashierLimit"
+            :total-items="filteredProducts.length"
+            @page-change="(p) => cashierPage = p"
+          />
         </div>
       </section>
 
@@ -511,6 +533,7 @@
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
 import SupervisorOverride from '@/components/SupervisorOverride.vue'
 import AppCombobox from '@/components/AppCombobox.vue'  // Combobox
+import AppPagination from '@/components/AppPagination.vue'
 import { useAuthStore }    from '@/stores/auth'
 import { useProductsStore } from '@/stores/products'
 import { useCartStore }    from '@/stores/cart'
@@ -538,7 +561,8 @@ const router        = useRouter()
 const searchTerm    = ref('')
 const searchInputRef = ref(null)  // D3: barcode scanner autofocus (legacy ref kept for onMounted)
 const comboProductId = ref('')    // Combobox: controlled value (always reset after selection)
-const activeCategory = ref(null)
+const activeCategory = ref('')
+const activeProductType = ref('') // '' | 'product' | 'bundle'
 const submitting    = ref(false)
 const successMsg    = ref('')
 
@@ -549,13 +573,39 @@ const toggleTheme = () => {
 }
 
 const activeOrder     = computed(() => cartStore.activeOrder)
-const filteredProducts = computed(() => productsStore.filteredProducts)
+// Pagination setup for cashier catalog
+const cashierPage = ref(1)
+const cashierLimit = ref(25) // 5x5 grid usually
 
-watch(searchTerm, (val) => productsStore.setSearchFilter(val))
+const filteredProducts = computed(() => {
+  return productsStore.filteredProducts.filter(p => {
+    if (activeProductType.value === 'bundle') return p.isBundle
+    if (activeProductType.value === 'product') return !p.isBundle
+    return true
+  })
+})
 
-const setCategory = (name) => {
-  activeCategory.value = name
-  productsStore.setCategoryFilter(name)
+const totalCashierPages = computed(() => Math.ceil(filteredProducts.value.length / cashierLimit.value))
+
+const paginatedProducts = computed(() => {
+  const start = (cashierPage.value - 1) * cashierLimit.value
+  const end = start + cashierLimit.value
+  return filteredProducts.value.slice(start, end)
+})
+
+watch(activeProductType, () => {
+  cashierPage.value = 1
+})
+
+watch(searchTerm, (val) => {
+  cashierPage.value = 1
+  productsStore.setSearchFilter(val)
+})
+
+const onCategorySelect = (id) => {
+  activeCategory.value = id
+  cashierPage.value = 1
+  productsStore.setCategoryFilter(id)
 }
 
 const formatCurrency = (v) => Math.round(v || 0).toLocaleString('id-ID')
@@ -931,12 +981,10 @@ const handleSwitchRole = () => {
 
 onMounted(async () => {
   await Promise.all([
-    productsStore.fetchProducts({ limit: 1000 }), // Fetch all products for cashier UI local filtering
+    productsStore.fetchAllForCashier(), // Fetch all products AND bundles for cashier UI local filtering
     productsStore.fetchCategories(),
     membersStore.fetchMembers({ isActive: true }),
-    staffStore.fetchStaff(),
-    pricelistStore.fetchPricelists(),
-    discountsStore.fetchAll({ isActive: true, all: true }), // Phase 3: load active discounts for auto-apply
+    discountsStore.fetchAll({ isActive: true, page: 1, limit: 1000 }), // Phase 3: load active discounts for auto-apply
   ])
   if (!activeOrder.value) cartStore.createOrder()
 
@@ -1358,66 +1406,84 @@ const openCFD = () => {
 
 .category-pills {
   display: flex;
-  gap: 0.375rem;
+  gap: 0.5rem;
   overflow-x: auto;
-  padding-bottom: 0.25rem;
+  padding-bottom: 0.5rem;
 }
 
 .category-pills::-webkit-scrollbar {
-  height: 3px;
+  height: 4px;
 }
 
 .pill {
-  padding: 0.4rem 1rem;
+  padding: 0.5rem 1.25rem;
   border-radius: 999px;
-  border: 1.5px solid var(--border-subtle);
-  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle, #334155);
+  background: var(--bg-surface-elevated, #1e293b);
   color: var(--text-secondary);
-  font-size: 0.78rem;
-  font-weight: 500;
+  font-size: 0.85rem;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: var(--pos-transition);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .pill:hover {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .pill.is-active {
-  background: var(--pos-gradient-primary);
+  background: linear-gradient(135deg, var(--accent, #6366f1), var(--accent-dark, #4338ca));
   border-color: transparent;
   color: white;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
 
 /* Product Grid */
 .catalog-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 0.875rem;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-auto-rows: min-content;
+  gap: 1.25rem;
   overflow-y: auto;
-  padding-right: 0.25rem;
+  padding-right: 0.5rem;
   align-content: start;
+}
+
+.catalog-pagination {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-surface);
+  border-radius: var(--pos-radius-lg);
+  display: flex;
+  justify-content: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .product-card {
   position: relative;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--pos-radius-lg);
-  padding: 0.875rem;
+  background: var(--bg-surface-elevated, #1e293b);
+  border: 1px solid var(--border-subtle, #334155);
+  border-radius: var(--pos-radius-xl, 16px);
+  padding: 1rem;
   cursor: pointer;
-  transition: var(--pos-transition);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  height: 100%;
 }
 
 .product-card:hover {
   border-color: var(--accent);
-  box-shadow: var(--pos-shadow-card);
-  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  transform: translateY(-4px);
 }
 
 .product-card:active {
@@ -1440,39 +1506,53 @@ const openCFD = () => {
 
 .product-visual {
   position: relative;
-  height: 85px;
-  border-radius: var(--pos-radius-md);
-  background: var(--bg-surface-2);
+  min-height: 120px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--bg-surface-3, #334155), var(--bg-surface-2, #1e293b));
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
   overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .product-card:hover .product-visual {
-  background: var(--accent-soft);
+  background: linear-gradient(145deg, var(--accent-subtle, #3730a3), var(--bg-surface-3, #334155));
+}
+
+.product-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.product-card:hover .product-img {
+  transform: scale(1.08);
 }
 
 .product-emoji {
-  font-size: 2.5rem;
-  transition: transform 0.2s ease;
+  font-size: 3.5rem;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .product-card:hover .product-emoji {
-  transform: scale(1.05);
+  transform: scale(1.15) rotate(-5deg);
 }
 
 .stock-flag {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
-  padding: 0.2rem 0.5rem;
+  padding: 0.3rem 0.6rem;
   border-radius: 999px;
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .flag-warning {
@@ -1504,38 +1584,44 @@ const openCFD = () => {
 .product-details {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  flex: 1;
+  gap: 0.5rem;
 }
 
 .product-title {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.3;
+  line-height: 1.4;
   margin: 0;
   display: -webkit-box;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .product-price {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--accent, #818cf8);
+  margin: auto 0 0 0;
 }
 
 .product-meta {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
   margin-top: 0.25rem;
 }
 
 .meta-stock {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--text-tertiary);
+  background: var(--bg-surface-2);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
 }
 
 .meta-stock strong {

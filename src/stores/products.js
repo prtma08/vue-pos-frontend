@@ -82,18 +82,19 @@ export const useProductsStore = defineStore('products', () => {
 
   // Normalize API → internal (backend sends `price` for selling price)
   const normalizeProduct = (p) => {
-    // Phase 1: Remap bundleComponents (Prisma relation) → bundleItems format cart.js expects
-    // Backend: bundleComponents[].{ component: {id,name,...}, qty }
-    // Cart expects: bundleItems[].{ productId, qty, name }
+    // Phase 1: Remap bundleComponents/components (Prisma relation) → bundleItems format cart.js expects
     let bundleItems = p.bundleItems // keep if already normalized (mock)
-    if (!bundleItems && Array.isArray(p.bundleComponents) && p.bundleComponents.length > 0) {
-      bundleItems = p.bundleComponents.map(bc => ({
-        productId: bc.component?.id ?? bc.componentId,
-        name: bc.component?.name ?? bc.name ?? '',
-        qty: bc.qty ?? bc.quantity ?? 1,
-      }))
+    if (!bundleItems) {
+      const comps = p.bundleComponents || p.components
+      if (Array.isArray(comps) && comps.length > 0) {
+        bundleItems = comps.map(bc => ({
+          productId: bc.component?.id ?? bc.componentId,
+          name: bc.component?.name ?? bc.name ?? '',
+          qty: bc.qty ?? bc.quantity ?? 1,
+        }))
+      }
     }
-    const isBundle = p.type === 'BUNDLE' || (Array.isArray(bundleItems) && bundleItems.length > 0)
+    const isBundle = p.type === 'BUNDLE' || p.isBundle === true || (Array.isArray(bundleItems) && bundleItems.length > 0)
     return {
       ...p,
       stock: p.totalStock ?? p.stock ?? 0,
@@ -107,6 +108,39 @@ export const useProductsStore = defineStore('products', () => {
       isBundle,
       bundleItems: isBundle ? (bundleItems ?? []) : undefined,
     }
+  }
+
+  // ── fetchAllForCashier ─────────────────────────────────────────────────────
+  // Cashier requires both products and bundles to be stored together so cart and barcode
+  // scanner logic can process them homogenously via productsStore.
+  const fetchAllForCashier = async () => {
+    loading.value = true
+    error.value = null
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 400))
+      products.value = MOCK_PRODUCTS.map(normalizeProduct)
+      categories.value = MOCK_CATEGORIES
+      productPrices.value = [...MOCK_PRICE_HISTORY]
+      loading.value = false
+      return { success: true }
+    }
+    try {
+      const [prodRes, bundleRes] = await Promise.all([
+        apiClient.get('/products', { params: { limit: 1000 } }),
+        apiClient.get('/bundles', { params: { limit: 1000 } })
+      ])
+      const rawProducts = prodRes.data.data ?? []
+      const rawBundles = bundleRes.data.data ?? []
+
+      const merged = [...rawProducts, ...rawBundles]
+      products.value = merged.map(normalizeProduct)
+      return { success: true }
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
+      const validationErrors = err.response?.data?.errors || null
+      error.value = errMsg
+      return { success: false, message: errMsg, errors: validationErrors }
+    } finally { loading.value = false }
   }
 
   // ── fetchProducts ──────────────────────────────────────────────────────────
@@ -661,7 +695,7 @@ export const useProductsStore = defineStore('products', () => {
     filteredProducts, lowStockProducts,
 
     // CRUD
-    fetchProducts, fetchCategories, addProduct, updateProduct, deleteProduct, deleteMultipleProducts,
+    fetchProducts, fetchAllForCashier, fetchCategories, addProduct, updateProduct, deleteProduct, deleteMultipleProducts,
 
     // Accounting — HPP & Price History
     purchaseStock, updateSellingPrice, fetchPriceHistory, getActivePrice,
