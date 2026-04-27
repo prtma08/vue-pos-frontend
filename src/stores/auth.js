@@ -255,16 +255,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  const selectPosDevice = async (device) => {
+  const selectPosDevice = async (device, startingCash = 0) => {
     // ── MOCK MODE ──────────────────────────────────────────────────────────
     if (USE_MOCK) {
       posDevice.value = device
       localStorage.setItem(POS_DEVICE_KEY, JSON.stringify(device))
+      // Hydrate shift store with mock data
+      try {
+        const { useShiftStore } = await import('./shift')
+        const shiftStore = useShiftStore()
+        await shiftStore.openShift(startingCash)
+      } catch { /* shift store may not be available */ }
       return { success: true }
     }
-    // ── REAL API — Swagger: POST /auth/select-pos ──────────────────────── 
+    // ── REAL API — POST /auth/select-pos (POS selection + Shift opening) ──
     try {
-      const response = await apiClient.post('/auth/select-pos', { posId: device.id })
+      const response = await apiClient.post('/auth/select-pos', {
+        posId: device.id,
+        startingCash: Math.round(startingCash),
+      })
 
       if (!response.data.success) {
         return { success: false, message: response.data.message || 'Gagal memilih POS' }
@@ -272,6 +281,20 @@ export const useAuthStore = defineStore('auth', () => {
 
       posDevice.value = device
       localStorage.setItem(POS_DEVICE_KEY, JSON.stringify(device))
+
+      // Hydrate shift store from the response
+      try {
+        const { useShiftStore } = await import('./shift')
+        const shiftStore = useShiftStore()
+        shiftStore.hydrateShift({
+          id: response.data.data?.shiftId || `shift-${Date.now()}`,
+          userId: user.value?.id,
+          startingCash: Math.round(startingCash),
+          startTime: new Date().toISOString(),
+          status: 'OPEN',
+        })
+      } catch { /* shift store may not be available */ }
+
       return { success: true }
     } catch (err) {
       const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
@@ -285,29 +308,52 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(POS_DEVICE_KEY)
   }
 
-  const logout = async () => {
+  const logout = async (actualCash = null) => {
     loading.value = true
     error.value = null
 
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 300))
+      // Close shift locally in mock mode
+      let shiftResult = null
+      try {
+        const { useShiftStore } = await import('./shift')
+        const shiftStore = useShiftStore()
+        if (shiftStore.isShiftOpen && actualCash !== null) {
+          const result = await shiftStore.closeShift(actualCash)
+          shiftResult = result
+        }
+        shiftStore.clearShift()
+      } catch { /* shift store may not be available */ }
       localStorage.removeItem(SESSION_KEY)
       clearAuth()
       loading.value = false
-      return { success: true }
+      return { success: true, shiftResult }
     }
 
-    // ── REAL API — Swagger: POST /api/auth/sign-out ─────────────────────
+    // ── REAL API — POST /auth/logout (closes shift + logs out) ───────────
+    let shiftResult = null
     try {
-      await apiClient.post('/api/auth/sign-out')
+      const payload = {}
+      if (actualCash !== null) {
+        payload.actualCash = Math.round(actualCash)
+      }
+      const response = await apiClient.post('/auth/logout', payload)
+      shiftResult = response.data?.data || null
     } catch {
       // Even if logout API fails, clear local state
     } finally {
+      // Clear shift store
+      try {
+        const { useShiftStore } = await import('./shift')
+        const shiftStore = useShiftStore()
+        shiftStore.clearShift()
+      } catch { /* ignore */ }
       clearAuth()
       loading.value = false
     }
 
-    return { success: true, message: 'Logout successful' }
+    return { success: true, message: 'Logout successful', shiftResult }
   }
 
   const checkAuth = async () => {

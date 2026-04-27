@@ -116,8 +116,9 @@ export const useDiscountsStore = defineStore('discounts', () => {
             const res = await apiClient.get('/discounts', {
                 params: {
                     page: params.page ?? pagination.value.page,
-                    limit: params.limit ?? pagination.value.limit,
+                    limit: params.limit ?? (params.all ? 1000 : pagination.value.limit),
                     search: params.search || undefined,
+                    isActive: params.isActive, // caller passes true for cashier screen
                 }
             })
             const fetched = res.data.data ?? []

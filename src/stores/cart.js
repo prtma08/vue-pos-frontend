@@ -146,6 +146,7 @@ export const useCartStore = defineStore('cart', () => {
       status: 'pending',
       customerName: '', // D7: nama customer untuk pending order
       paymentMethod: 'CASH', // Default; selectable by kasir: CASH | TRANSFER | QRIS
+      cashReceived: 0, // Track cash received for CASH payments
       createdAt: new Date().toISOString(),
       lastModified: new Date().toISOString(),
       items: [],
@@ -185,7 +186,7 @@ export const useCartStore = defineStore('cart', () => {
   //   1. Base Price   → dari pricelist event aktif, atau harga normal
   //   2. Event Flag   → tandai apakah sedang event
   //   3. Member Disc  → potongan % member dari base price
-  //   4. Product Disc → potongan diskon per-produk setelah member discount
+  //   4. Product Disc → BEST item-level discount (max amount, member-aware)
   const _computeItemPrices = (productData, order) => {
     const pricelistStore = usePricelistStore()
     const basePrice = pricelistStore.getCurrentPrice(productData)
@@ -196,22 +197,41 @@ export const useCartStore = defineStore('cart', () => {
     const memberDiscountPct = order.member?.discountPercent ?? 0
     const priceAfterMember = Math.round(basePrice * (1 - memberDiscountPct / 100) * 100) / 100
 
-    // Step 4: Per-product discount (Langkah 3 URD)
-    // useDiscountsStore() is a sync Pinia singleton — safely callable here
+    // Phase 3 – Step 4: Best item-level discount
+    // Rules:
+    //   - Only include discounts where isMemberLevel=true if member is set
+    //   - Pick the discount with the MAXIMUM nominal amount (not just first)
     let priceAfterProductDisc = priceAfterMember
     let itemPromoDiscount = 0
     let itemPromoLabel = null
 
     try {
       const discStore = useDiscountsStore()
-      const activeProductDiscs = discStore.getActiveProductDiscounts(productData.id)
-      if (activeProductDiscs.length > 0) {
-        const disc = activeProductDiscs[0]
-        itemPromoDiscount = disc.type === 'PERCENTAGE'
-          ? Math.round(priceAfterMember * disc.value / 100 * 100) / 100
-          : Math.min(disc.value, priceAfterMember)
-        priceAfterProductDisc = Math.max(0, Math.round((priceAfterMember - itemPromoDiscount) * 100) / 100)
-        itemPromoLabel = disc.name
+      const hasMember = !!order.member
+      const candidateDiscs = discStore.getActiveProductDiscounts(productData.id).filter(d => {
+        // If isMemberLevel is true, discount only applies when member is selected
+        if (d.isMemberLevel && !hasMember) return false
+        return true
+      })
+
+      if (candidateDiscs.length > 0) {
+        // Compute nominal discount for each candidate, pick the maximum
+        let bestDisc = null
+        let bestAmount = 0
+        for (const disc of candidateDiscs) {
+          const amount = disc.type === 'PERCENTAGE'
+            ? Math.round(priceAfterMember * disc.value / 100 * 100) / 100
+            : Math.min(disc.value, priceAfterMember)
+          if (amount > bestAmount) {
+            bestAmount = amount
+            bestDisc = disc
+          }
+        }
+        if (bestDisc) {
+          itemPromoDiscount = bestAmount
+          priceAfterProductDisc = Math.max(0, Math.round((priceAfterMember - itemPromoDiscount) * 100) / 100)
+          itemPromoLabel = bestDisc.name
+        }
       }
     } catch (_) {
       // discountsStore belum terinisialisasi — lewati saja
@@ -227,7 +247,31 @@ export const useCartStore = defineStore('cart', () => {
     }
 
     // Detect bundle/package products
-    const isBundle = productData.type === 'BUNDLE' && Array.isArray(productData.bundleItems)
+    const isBundle = (productData.type === 'BUNDLE' || productData.isBundle) && Array.isArray(productData.bundleItems)
+
+    // ── Phase 2: Pre-add stock validation ────────────────────────────────────
+    const productsStore = useProductsStore()
+    const existingItem = order.items.find(i => i.productId === productData.id)
+    const currentQty = existingItem ? existingItem.quantity : 0
+
+    if (isBundle) {
+      const maxQty = productsStore.getBundleMaxQty(productData.id)
+      if (maxQty <= 0) {
+        return { success: false, message: `Stok komponen bundle "${productData.name}" habis` }
+      }
+      if (currentQty + 1 > maxQty) {
+        return { success: false, message: `Stok bundle "${productData.name}" tidak mencukupi (maks: ${maxQty})` }
+      }
+    } else {
+      const liveProduct = productsStore.getProductById(productData.id)
+      const available = liveProduct?.stock ?? productData.stock ?? 0
+      if (available <= 0) {
+        return { success: false, message: `Stok "${productData.name}" habis` }
+      }
+      if (currentQty + 1 > available) {
+        return { success: false, message: `Stok "${productData.name}" tidak mencukupi (tersisa: ${available})` }
+      }
+    }
 
     const { basePrice, isEventPrice, priceAfterMember, priceAfterProductDisc, itemPromoDiscount, itemPromoLabel } = _computeItemPrices(productData, order)
 
@@ -264,6 +308,8 @@ export const useCartStore = defineStore('cart', () => {
         // Bundle metadata
         isBundle,
         bundleItems: isBundle ? productData.bundleItems : undefined,
+        // Phase 2: Loss alert snapshot (used to disable manual discount in cart row)
+        hasLossAlert: productData.hasLossAlert ?? false,
       })
       // E2 FIX: For bundles, reserve each component's stock; for regulars reserve own stock
       if (isBundle && productData.bundleItems) {
@@ -342,20 +388,79 @@ export const useCartStore = defineStore('cart', () => {
     const order = orders.value.find(o => o.id === orderId)
     if (!order) return
 
-    // subtotal = ∑ (priceAfterMember × qty) — already stored in item.subtotal
-    const subtotal = order.items.reduce((sum, item) => sum + item.subtotal, 0)
+    // ─── Phase 3: Layered discount accounting ────────────────────────────────
+    // Gross subtotal (base prices × qty, before any discount)
+    const subtotal = order.items.reduce((sum, item) => {
+      const baseLineTotal = (item.basePrice ?? item.price) * item.quantity
+      return sum + baseLineTotal
+    }, 0)
 
-    // Transaction-level discount applied on top of member-discounted subtotal
-    const discountAmount = (subtotal * (order.summary.discountPercent || 0)) / 100
-    const taxAmount = ((subtotal - discountAmount) * (order.summary.taxPercent || 0)) / 100
+    // Step A: Total item-level discounts = Σ (itemPromoDiscount × qty)
+    const totalItemDiscount = order.items.reduce((sum, item) => {
+      return sum + ((item.itemPromoDiscount || 0) * item.quantity)
+    }, 0)
 
+    // Step B: Subtotal after item discounts (= what backend calls "subtotal")
+    const subtotalAfterItemDiscount = Math.round((subtotal - totalItemDiscount) * 100) / 100
+
+    // Step C: Auto-apply best transaction-level discount
+    let autoTransactionDiscountPct = 0
+    let autoTransactionDiscountId = null
+    try {
+      const discStore = useDiscountsStore()
+      const hasMember = !!order.member
+      const txDiscs = discStore.activeDiscounts.filter(d => {
+        if (!d.isTransactionLevel) return false
+        if (d.isMemberLevel && !hasMember) return false
+        return true
+      })
+      let bestTxDisc = null
+      let bestTxPct = 0
+      for (const d of txDiscs) {
+        // Normalize to percentage for comparison
+        const pct = d.type === 'PERCENTAGE'
+          ? d.value
+          : (subtotalAfterItemDiscount > 0 ? Math.round(d.value / subtotalAfterItemDiscount * 10000) / 100 : 0)
+        if (pct > bestTxPct) {
+          bestTxPct = pct
+          bestTxDisc = d
+        }
+      }
+      if (bestTxDisc) {
+        autoTransactionDiscountPct = bestTxPct
+        autoTransactionDiscountId = bestTxDisc.id
+      }
+    } catch (_) { /* discountsStore not ready */ }
+
+    // Effective transaction discount = max(auto, manual supervisor override)
+    const effectiveTransactionDiscountPct = Math.max(
+      autoTransactionDiscountPct,
+      order.summary.discountPercent || 0
+    )
+
+    // Step D: Transaction discount nominal
+    const transactionDiscountAmount = Math.round(
+      subtotalAfterItemDiscount * effectiveTransactionDiscountPct / 100 * 100
+    ) / 100
+
+    // Step E: Tax on net (after both discount layers)
+    const taxableAmount = subtotalAfterItemDiscount - transactionDiscountAmount
+    const taxAmount = Math.round(taxableAmount * (order.summary.taxPercent || 0) / 100 * 100) / 100
+
+    // ─── Write to summary ────────────────────────────────────────────────────
     order.summary.subtotal = Math.round(subtotal * 100) / 100
-    order.summary.tax = Math.round(taxAmount * 100) / 100
-    order.summary.total = Math.round((subtotal - discountAmount + taxAmount) * 100) / 100
+    order.summary.totalItemDiscount = Math.round(totalItemDiscount * 100) / 100
+    order.summary.subtotalAfterItemDiscount = subtotalAfterItemDiscount
+    order.summary.autoTransactionDiscountPct = autoTransactionDiscountPct
+    order.summary.autoTransactionDiscountId = autoTransactionDiscountId
+    order.summary.effectiveTransactionDiscountPct = effectiveTransactionDiscountPct
+    order.summary.transactionDiscountAmount = transactionDiscountAmount
+    order.summary.tax = taxAmount
+    order.summary.total = Math.round((taxableAmount + taxAmount) * 100) / 100
 
-    // Profit estimate uses basePrice (before member discount) vs hpp
+    // Profit estimate uses basePrice vs hpp
     order.metadata.profitEstimate = order.items.reduce((profit, item) => {
-      const unitBase = item.basePrice ?? item.price  // fall back for legacy items
+      const unitBase = item.basePrice ?? item.price
       return profit + (unitBase - (item.hpp || 0)) * item.quantity
     }, 0)
   }
@@ -364,6 +469,17 @@ export const useCartStore = defineStore('cart', () => {
     const order = orders.value.find(o => o.id === orderId)
     if (!order) {
       return { success: false, message: 'Order not found' }
+    }
+
+    // Phase 4: Block discount on items with loss alert
+    const productsStore = useProductsStore()
+    const lossItems = order.items.filter(item => {
+      const product = productsStore.products.find(p => p.id === item.productId)
+      return product?.hasLossAlert === true
+    })
+    if (lossItems.length > 0) {
+      const names = lossItems.map(i => i.name).join(', ')
+      return { success: false, message: `Diskon tidak dapat diterapkan — produk berikut memiliki peringatan rugi (harga jual < HPP): ${names}` }
     }
 
     const discountAmount = (order.summary.subtotal * discountPercent) / 100
@@ -395,6 +511,16 @@ export const useCartStore = defineStore('cart', () => {
     }
 
     const item = order.items[itemIndex]
+
+    // Phase 4: Block price decrease on items with loss alert
+    if (newPrice < item.price) {
+      const productsStore = useProductsStore()
+      const product = productsStore.products.find(p => p.id === item.productId)
+      if (product?.hasLossAlert === true) {
+        return { success: false, message: `Harga produk "${item.name}" tidak dapat diturunkan — produk memiliki peringatan rugi (harga jual < HPP)` }
+      }
+    }
+
     const priceChange = (newPrice - item.price) * item.quantity
 
     if (requireAuth && requiresSupervisorAuth('priceChange', Math.abs(priceChange))) {
@@ -427,7 +553,21 @@ export const useCartStore = defineStore('cart', () => {
     }
 
     order.member = memberData
+
+    // Phase 3: Re-price ALL existing items when member changes
+    // Member discount or member-gated product discounts may now apply/unapply
+    const productsStore = useProductsStore()
+    for (const item of order.items) {
+      const productData = productsStore.getProductById(item.productId) ?? { id: item.productId, price: item.basePrice }
+      const { priceAfterProductDisc, itemPromoDiscount, itemPromoLabel } = _computeItemPrices(productData, order)
+      item.price = priceAfterProductDisc
+      item.itemPromoDiscount = itemPromoDiscount
+      item.itemPromoLabel = itemPromoLabel
+      item.subtotal = Math.round(priceAfterProductDisc * item.quantity * 100) / 100
+    }
+
     order.lastModified = new Date().toISOString()
+    updateOrderSummary(orderId)
     persistToStorage()
 
     return { success: true }
@@ -469,6 +609,32 @@ export const useCartStore = defineStore('cart', () => {
       }
     }
 
+    // Audit log: record the supervisor override
+    try {
+      const { useSupervisorAuth } = await import('@/composables/useSupervisorAuth')
+      const { logAuditAction } = useSupervisorAuth()
+      logAuditAction(supervisorId, pending.action, {
+        orderId: pending.orderId,
+        amount: pending.amount,
+        reason: pending.reason,
+        discountPercent: pending.discountPercent,
+        oldPrice: pending.oldPrice,
+        newPrice: pending.newPrice,
+      })
+    } catch { /* audit logging is best-effort */ }
+
+    // Store supervisor override info on the order for backend submission
+    if (order) {
+      if (!order.metadata.supervisorOverrides) order.metadata.supervisorOverrides = []
+      order.metadata.supervisorOverrides.push({
+        supervisorId,
+        action: pending.action,
+        amount: pending.amount,
+        reason: pending.reason,
+        timestamp: pending.timestamp,
+      })
+    }
+
     persistToStorage()
     supervisorAuthPending.value = null
 
@@ -479,6 +645,14 @@ export const useCartStore = defineStore('cart', () => {
     const order = orders.value.find(o => o.id === orderId)
     if (!order) return { success: false, message: 'Order not found' }
     order.paymentMethod = method // 'CASH' | 'TRANSFER' | 'QRIS'
+    persistToStorage()
+    return { success: true }
+  }
+
+  const setCashReceived = (orderId, amount) => {
+    const order = orders.value.find(o => o.id === orderId)
+    if (!order) return { success: false, message: 'Order not found' }
+    order.cashReceived = Math.round(amount) || 0
     persistToStorage()
     return { success: true }
   }
@@ -547,16 +721,38 @@ export const useCartStore = defineStore('cart', () => {
     try {
       // Backend: POST /transactions
       // Send only IDs and qty — backend recalculates prices server-side
-      const response = await apiClient.post('/transactions', {
+      // Determine backend-compatible status
+      const backendStatus = order.customerName && order.customerName.trim()
+        ? 'PENDING'
+        : 'COMPLETED'
+
+      const authStore = useAuthStore()
+
+      // Phase 4: Strict payload schema
+      const totalDiscount = Math.round(
+        ((order.summary.totalItemDiscount || 0) + (order.summary.transactionDiscountAmount || 0)) * 100
+      ) / 100
+
+      const payload = {
         paymentMethod: order.paymentMethod || 'CASH',
-        status: order.status || 'COMPLETED',
+        status: backendStatus,
+        posId: authStore.posDevice?.id || undefined,
         memberId: order.member?.id || undefined,
         customerName: order.customerName || undefined,
+        discountAmount: totalDiscount || undefined,
+        notes: order.summary.notes || undefined,
         items: order.items.map(item => ({
           productId: item.productId,
           qty: item.quantity,
         })),
-      })
+      }
+
+      // Add cashReceived for CASH payments
+      if (payload.paymentMethod === 'CASH') {
+        payload.cashReceived = order.cashReceived || order.summary?.total || 0
+      }
+
+      const response = await apiClient.post('/transactions', payload)
 
       const txData = response.data.data ?? response.data
 
@@ -566,15 +762,76 @@ export const useCartStore = defineStore('cart', () => {
       order.status = 'submitted'
       order.metadata.submittedAt = new Date().toISOString()
       order.metadata.transactionId = txData?.id
+
+      // Phase 4: Remove submitted order from localStorage only after confirmed 200 OK
+      const submittedOrderId = order.id
       persistToStorage()
 
       // B7 FIX: Record transaction in active shift so totalSales is accurate
       try { useShiftStore().recordTransaction(order.metadata.transactionId, order.summary.total) } catch { /* shift may not be open */ }
 
-      return { success: true, transactionId: order.metadata.transactionId }
+      // Clean up: remove the successfully submitted order from the cart
+      clearOrder(submittedOrderId)
+
+      return { success: true, transactionId: txData?.id }
     } catch (err) {
+      const status = err.response?.status
       const errMsg = err.response?.data?.message || 'Terjadi kesalahan sistem'
       const validationErrors = err.response?.data?.errors || null
+
+      // Phase 4: Typed error routing — parse specific backend messages
+      if (status === 400) {
+        const msg = errMsg.toLowerCase()
+
+        // Case 1: Member inactive
+        if (msg.includes('member') && (msg.includes('tidak aktif') || msg.includes('inactive'))) {
+          return {
+            success: false,
+            message: errMsg,
+            errorType: 'MEMBER_INACTIVE',
+          }
+        }
+
+        // Case 2: Bundle/package stock insufficient
+        if (msg.includes('bundle') || msg.includes('paket') || msg.includes('komponen')) {
+          // Try to find the affected item name from the error message
+          const affectedItem = order.items.find(i => i.isBundle && errMsg.includes(i.name))
+          // Trigger product catalog refresh
+          try {
+            const productsStore = useProductsStore()
+            await productsStore.fetchProducts({ limit: 1000 })
+          } catch { /* ignore */ }
+          return {
+            success: false,
+            message: errMsg,
+            errorType: 'BUNDLE_STOCK_ERROR',
+            affectedItem: affectedItem ?? order.items.find(i => i.isBundle) ?? null,
+          }
+        }
+
+        // Case 3: Regular product out of stock
+        if (msg.includes('stok') || msg.includes('stock') || msg.includes('kehabisan')) {
+          // Refresh catalog so UI shows updated stock
+          try {
+            const productsStore = useProductsStore()
+            await productsStore.fetchProducts({ limit: 1000 })
+          } catch { /* ignore */ }
+          return {
+            success: false,
+            message: errMsg,
+            errorType: 'STOCK_ERROR',
+          }
+        }
+      }
+
+      // Auto-refresh stock on 400/404 for unmatched errors
+      if (status === 404) {
+        try {
+          const productsStore = useProductsStore()
+          await productsStore.fetchProducts({ limit: 1000 })
+        } catch { /* ignore refresh failure */ }
+      }
+
       return { success: false, message: errMsg, errors: validationErrors }
     }
   }
@@ -638,6 +895,7 @@ export const useCartStore = defineStore('cart', () => {
     changePriceItem,
     setMember,
     setPaymentMethod,
+    setCashReceived,
     requestSupervisorAuth,
     completeSupervisorAuth,
     submitOrder,

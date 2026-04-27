@@ -84,12 +84,12 @@ const routes = [
     meta: { requiresAuth: true, roles: ['kasir', 'supervisor'], title: 'Pilih Terminal — Nextore POS' },
   },
 
-  // Opening Shift (kasir, after POS device select)
+  // Opening Shift (kasir, after POS device select — now redirects to device-select since shift opens with POS selection)
   {
     path: '/cashier/opening-shift',
     name: 'OpeningShift',
     component: OpeningShift,
-    meta: { requiresAuth: true, roles: ['kasir'], requiresPosDevice: true, title: 'Buka Shift — Nextore POS' },
+    meta: { requiresAuth: true, roles: ['kasir'], title: 'Buka Shift — Nextore POS' },
   },
 
   // Cashier (full-screen, no sidebar — requires POS device + open shift)

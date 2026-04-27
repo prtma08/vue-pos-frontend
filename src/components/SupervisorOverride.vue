@@ -7,41 +7,48 @@
           <div class="override-header">
             <div class="override-icon">🔐</div>
             <h2 class="override-title">Supervisor Override</h2>
-            <p class="override-desc">Pilih supervisor dan masukkan password untuk {{ actionLabel }}</p>
+            <p class="override-desc">Masukkan kredensial supervisor untuk {{ actionLabel }}</p>
+          </div>
+
+          <!-- Pending action detail -->
+          <div v-if="pendingDetail" class="override-detail">
+            <span class="detail-label">{{ pendingDetail }}</span>
           </div>
 
           <!-- Form -->
           <form @submit.prevent="handleSubmit" class="override-form">
             <div class="form-group">
-              <label class="form-label">Supervisor</label>
-              <!-- AppCombobox: searchable supervisor picker -->
-              <AppCombobox
-                :model-value="selectedSupervisor"
-                :options="supervisorList"
-                option-key="id"
-                option-label="name"
-                option-sub-label="roleDisplay"
-                placeholder="-- Pilih Supervisor --"
-                search-placeholder="Cari nama supervisor..."
-                :clearable="false"
-                :autofocus="true"
-                class="supervisor-combobox"
-                @select="onSupervisorSelect"
+              <label class="form-label">Username Supervisor</label>
+              <input
+                ref="usernameInput"
+                v-model="username"
+                class="input-field"
+                type="text"
+                placeholder="Masukkan username"
+                required
+                autocomplete="off"
               />
             </div>
 
             <div class="form-group">
-              <label class="form-label">Password Supervisor</label>
-              <input v-model="password" class="input-field" type="password" placeholder="Masukkan password" required autocomplete="off"/>
+              <label class="form-label">Password</label>
+              <input
+                v-model="password"
+                class="input-field"
+                type="password"
+                placeholder="Masukkan password"
+                required
+                autocomplete="off"
+              />
             </div>
 
-            <p v-if="error" class="form-error">{{ error }}</p>
+            <p v-if="errorMsg" class="form-error">{{ errorMsg }}</p>
 
             <div class="override-actions">
               <button type="button" class="btn btn-ghost" @click="close">Batal</button>
-              <button type="submit" class="btn btn-primary" :disabled="verifying">
-                <span v-if="verifying" class="spin"></span>
-                {{ verifying ? 'Verifikasi...' : 'Konfirmasi' }}
+              <button type="submit" class="btn btn-primary" :disabled="isVerifying">
+                <span v-if="isVerifying" class="spin"></span>
+                {{ isVerifying ? 'Verifikasi...' : 'Konfirmasi' }}
               </button>
             </div>
           </form>
@@ -52,65 +59,60 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useUsersStore } from '@/stores/users'
-import AppCombobox from '@/components/AppCombobox.vue'
+import { ref, watch, nextTick } from 'vue'
+import { useSupervisorAuth } from '@/composables/useSupervisorAuth'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   actionLabel: { type: String, default: 'aksi ini' },
+  pendingDetail: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue', 'approved', 'denied'])
 
-const usersStore = useUsersStore()
-const selectedSupervisor = ref('')
+const { verifySupervisor, verifying: isVerifying, error: authError } = useSupervisorAuth()
+
+const username = ref('')
 const password = ref('')
-const error = ref('')
-const verifying = ref(false)
+const errorMsg = ref('')
+const usernameInput = ref(null)
 
-const supervisorList = computed(() =>
-  usersStore.users.filter(u => {
-    const roles = (u.roles || [u.role]).map(r => r?.toLowerCase())
-    return roles.includes('supervisor') || roles.includes('admin') || roles.includes('superuser')
-  }).map(u => ({
-    ...u,
-    roleDisplay: (u.roles || [u.role])[0]?.replace(/^\w/, c => c.toUpperCase()) || 'Supervisor',
-  }))
-)
-
-// Combobox handler: receives full user object
-const onSupervisorSelect = (user) => {
-  selectedSupervisor.value = user?.id || ''
-}
+// Auto-focus username input when modal opens
+watch(() => props.modelValue, async (show) => {
+  if (show) {
+    await nextTick()
+    usernameInput.value?.focus()
+  }
+})
 
 const close = () => {
-  error.value = ''
+  errorMsg.value = ''
   password.value = ''
-  selectedSupervisor.value = ''
+  username.value = ''
+  emit('denied')
   emit('update:modelValue', false)
 }
 
 const handleSubmit = async () => {
-  error.value = ''
-  if (!selectedSupervisor.value) { error.value = 'Pilih supervisor terlebih dahulu'; return }
-  if (!password.value) { error.value = 'Password wajib diisi'; return }
+  errorMsg.value = ''
+  if (!username.value.trim()) { errorMsg.value = 'Username wajib diisi'; return }
+  if (!password.value) { errorMsg.value = 'Password wajib diisi'; return }
 
-  verifying.value = true
-  try {
-    await new Promise(r => setTimeout(r, 600))
-    const supervisor = usersStore.users.find(u => u.id === selectedSupervisor.value)
+  const result = await verifySupervisor(username.value.trim(), password.value)
 
-    if (password.value === 'admin123' || password.value === 'super123') {
-      emit('approved', { supervisorId: supervisor?.id, supervisorName: supervisor?.name || 'Supervisor' })
-      close()
-    } else {
-      error.value = 'Password supervisor salah'
-      emit('denied')
-    }
-  } finally { verifying.value = false }
+  if (result.success) {
+    emit('approved', {
+      supervisorId: result.supervisorId,
+      supervisorName: result.supervisorName,
+    })
+    // Reset fields
+    password.value = ''
+    username.value = ''
+    errorMsg.value = ''
+    emit('update:modelValue', false)
+  } else {
+    errorMsg.value = result.message || authError.value || 'Verifikasi gagal'
+  }
 }
-
-onMounted(() => { if (!usersStore.users.length) usersStore.fetchAll() })
 </script>
 
 <style scoped>
@@ -124,6 +126,21 @@ onMounted(() => { if (!usersStore.users.length) usersStore.fetchAll() })
 [data-theme="dark"] .override-title { color: #f1f5f9; }
 .override-desc { font-size: 0.85rem; color: #64748b; margin: 0.375rem 0 0; line-height: 1.5; }
 
+.override-detail {
+  margin: 0.75rem 2rem 0;
+  padding: 0.625rem 1rem;
+  background: rgba(99,102,241,0.08);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 10px;
+  text-align: center;
+}
+.detail-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6366f1;
+}
+[data-theme="dark"] .detail-label { color: #818cf8; }
+
 .override-form { padding: 1.5rem 2rem 2rem; }
 .form-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
 .form-label { font-size: 0.825rem; font-weight: 600; color: #475569; }
@@ -131,12 +148,6 @@ onMounted(() => { if (!usersStore.users.length) usersStore.fetchAll() })
 .input-field { padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 12px; background: #fff; color: #1e293b; font-size: 0.9rem; transition: all 0.3s; outline: none; font-weight: 500; width: 100%; box-sizing: border-box; }
 .input-field:focus { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1); }
 [data-theme="dark"] .input-field { background: #0f172a; border-color: #334155; color: #f1f5f9; }
-
-/* Make combobox trigger visually consistent with input-field */
-.supervisor-combobox :deep(.cb-trigger) { padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 12px; background: #fff; min-height: 50px; }
-[data-theme="dark"] .supervisor-combobox :deep(.cb-trigger) { background: #0f172a; border-color: #334155; }
-.supervisor-combobox :deep(.cb-display-text) { font-size: 0.9rem; font-weight: 500; color: #1e293b; }
-[data-theme="dark"] .supervisor-combobox :deep(.cb-display-text) { color: #f1f5f9; }
 
 .form-error { color: #dc2626; font-size: 0.825rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem; text-align: center; }
 

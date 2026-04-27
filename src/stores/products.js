@@ -81,13 +81,33 @@ export const useProductsStore = defineStore('products', () => {
   const getProductBySku = (sku) => products.value.find(p => p.sku === sku)
 
   // Normalize API → internal (backend sends `price` for selling price)
-  const normalizeProduct = (p) => ({
-    ...p,
-    stock: p.totalStock ?? p.stock ?? 0,
-    hpp: p.hppAverage ?? p.hpp ?? 0,
-    sellingPrice: p.price ?? p.sellingPrice,
-    isLowStock: (p.totalStock ?? p.stock ?? 0) <= (p.lowStockThreshold ?? lowStockThreshold.value),
-  })
+  const normalizeProduct = (p) => {
+    // Phase 1: Remap bundleComponents (Prisma relation) → bundleItems format cart.js expects
+    // Backend: bundleComponents[].{ component: {id,name,...}, qty }
+    // Cart expects: bundleItems[].{ productId, qty, name }
+    let bundleItems = p.bundleItems // keep if already normalized (mock)
+    if (!bundleItems && Array.isArray(p.bundleComponents) && p.bundleComponents.length > 0) {
+      bundleItems = p.bundleComponents.map(bc => ({
+        productId: bc.component?.id ?? bc.componentId,
+        name: bc.component?.name ?? bc.name ?? '',
+        qty: bc.qty ?? bc.quantity ?? 1,
+      }))
+    }
+    const isBundle = p.type === 'BUNDLE' || (Array.isArray(bundleItems) && bundleItems.length > 0)
+    return {
+      ...p,
+      stock: p.totalStock ?? p.stock ?? 0,
+      hpp: p.hppAverage ?? p.hpp ?? 0,
+      sellingPrice: p.price ?? p.sellingPrice,
+      isLowStock: (p.totalStock ?? p.stock ?? 0) <= (p.lowStockThreshold ?? lowStockThreshold.value),
+      // Phase 4: Map loss alert fields from backend
+      hasLossAlert: p.hasLossAlert ?? false,
+      hppAverage: p.hppAverage ?? p.hpp ?? 0,
+      // Phase 1: Bundle fields
+      isBundle,
+      bundleItems: isBundle ? (bundleItems ?? []) : undefined,
+    }
+  }
 
   // ── fetchProducts ──────────────────────────────────────────────────────────
   const fetchProducts = async (params = {}) => {
@@ -560,6 +580,27 @@ export const useProductsStore = defineStore('products', () => {
     return sp > 0 ? Math.round((margin / sp) * 10000) / 100 : 0
   }
   const isLowStock = (productId) => { const p = getProductById(productId); return p && p.stock <= lowStockThreshold.value }
+  const isLossAlertProduct = (productId) => { const p = getProductById(productId); return p?.hasLossAlert === true }
+
+  /**
+   * Phase 1: getBundleMaxQty
+   * Returns how many units of a bundle can be sold given current component stock.
+   * Formula: Math.floor( min( componentStock / requiredQtyPerBundle ) )
+   */
+  const getBundleMaxQty = (productId) => {
+    const p = getProductById(productId)
+    if (!p || !p.isBundle || !Array.isArray(p.bundleItems) || p.bundleItems.length === 0) {
+      return p?.stock ?? 0
+    }
+    let minSellable = Infinity
+    for (const comp of p.bundleItems) {
+      const compProduct = getProductById(comp.productId)
+      const compStock = compProduct?.stock ?? 0
+      const qtyNeeded = comp.qty || 1
+      minSellable = Math.min(minSellable, Math.floor(compStock / qtyNeeded))
+    }
+    return minSellable === Infinity ? 0 : minSellable
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   //  EXPIRING PRODUCTS — find products approaching expiry
@@ -630,7 +671,7 @@ export const useProductsStore = defineStore('products', () => {
 
     // Utility
     updateHPP, setLowStockThreshold, setSearchFilter, setCategoryFilter, clearFilters,
-    getProductById, getProductBySku, profitMargin, isLowStock,
+    getProductById, getProductBySku, profitMargin, isLowStock, isLossAlertProduct, getBundleMaxQty,
     getExpiringProducts, reserveStock, releaseReservedStock,
   }
 })

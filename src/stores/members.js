@@ -27,10 +27,11 @@ export const useMembersStore = defineStore('members', () => {
     let nextMockId = 5
 
     const searchTerm = ref('')
+    const activeMembers = computed(() => members.value.filter(m => m.isActive !== false))
     const filtered = computed(() => {
-        if (!searchTerm.value) return members.value
+        if (!searchTerm.value) return activeMembers.value
         const q = searchTerm.value.toLowerCase()
-        return members.value.filter(m =>
+        return activeMembers.value.filter(m =>
             m.name.toLowerCase().includes(q) ||
             m.phone.includes(q)
         )
@@ -40,7 +41,8 @@ export const useMembersStore = defineStore('members', () => {
         loading.value = true
         if (USE_MOCK) {
             await new Promise(r => setTimeout(r, 300))
-            members.value = [...MOCK_MEMBERS]
+            // Phase 1: Only return active members for cashier use
+            members.value = [...MOCK_MEMBERS].filter(m => m.isActive !== false)
             loading.value = false
             return { success: true }
         }
@@ -49,8 +51,9 @@ export const useMembersStore = defineStore('members', () => {
             const response = await apiClient.get('/members', {
                 params: {
                     page: params.page ?? pagination.value.page,
-                    limit: params.limit ?? pagination.value.limit,
+                    limit: params.limit ?? (params.all ? 1000 : pagination.value.limit),
                     search: params.search || undefined,
+                    isActive: true, // Phase 1: Only fetch active members
                 }
             })
             members.value = response.data.data ?? []
@@ -153,9 +156,9 @@ export const useMembersStore = defineStore('members', () => {
 
     const getMemberById = (id) => members.value.find(m => m.id === id)
     const searchMembers = (query) => {
-        if (!query) return members.value
+        if (!query) return activeMembers.value
         const q = query.toLowerCase()
-        return members.value.filter(m => m.name.toLowerCase().includes(q) || m.phone.includes(q))
+        return activeMembers.value.filter(m => m.name.toLowerCase().includes(q) || m.phone.includes(q))
     }
 
     let searchTimeout
@@ -166,5 +169,5 @@ export const useMembersStore = defineStore('members', () => {
         }, 500)
     })
 
-    return { members, discounts, loading, error, pagination, searchTerm, filtered, fetchMembers, fetchDiscounts, add, update, remove, getMemberById, searchMembers }
+    return { members, activeMembers, discounts, loading, error, pagination, searchTerm, filtered, fetchMembers, fetchDiscounts, add, update, remove, getMemberById, searchMembers }
 })

@@ -32,7 +32,7 @@ export const usePosDevicesStore = defineStore('posDevices', () => {
         return list
     })
 
-    const availableDevices = computed(() => devices.value.filter(d => d.isActive && !d.currentCashier))
+    const availableDevices = computed(() => devices.value.filter(d => d.isActive && !d.activeUserId && !d.currentCashier))
 
     // ── fetchAll ───────────────────────────────────────────────────────────────
     const fetchAll = async (params = {}) => {

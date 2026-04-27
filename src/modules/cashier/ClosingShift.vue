@@ -76,9 +76,9 @@
 
         <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
 
-        <button type="submit" class="btn-close-shift" :disabled="shiftStore.loading || !cashRaw">
-          <span v-if="shiftStore.loading" class="spinner"></span>
-          {{ shiftStore.loading ? 'Menutup Shift...' : 'Tutup Shift & Logout' }}
+        <button type="submit" class="btn-close-shift" :disabled="closing || !cashRaw">
+          <span v-if="closing" class="spinner"></span>
+          {{ closing ? 'Menutup Shift...' : 'Tutup Shift & Logout' }}
         </button>
 
         <button type="button" class="btn-back" @click="router.push('/cashier')">
@@ -107,7 +107,7 @@
                   <span>Rp {{ formatCurrency(Math.abs(resultData?.deficit || 0)) }}</span>
                 </div>
               </div>
-              <button class="btn-logout" @click="handleLogout">Logout</button>
+              <button class="btn-logout" @click="handleDismiss">Selesai</button>
             </div>
           </div>
         </transition>
@@ -133,6 +133,7 @@ const errorMsg = ref('')
 const showResult = ref(false)
 const resultData = ref(null)
 const cashInput = ref(null)
+const closing = ref(false)
 
 const summary = computed(() => shiftStore.getShiftSummary)
 
@@ -156,17 +157,38 @@ const handleCloseShift = async () => {
     return
   }
 
-  const result = await shiftStore.closeShift(cashRaw.value)
+  closing.value = true
+
+  // Combined close-shift + logout via single API call
+  const result = await authStore.logout(cashRaw.value)
+
+  closing.value = false
+
   if (result.success) {
-    resultData.value = result
+    // Build result data from API response
+    const shiftResult = result.shiftResult
+    const expectedCash = shiftResult?.expectedCash ?? summary.value?.expectedCash ?? 0
+    const diff = shiftResult?.difference ?? (cashRaw.value - expectedCash)
+
+    resultData.value = {
+      shift: {
+        expectedCash,
+        closingBalance: cashRaw.value,
+        startingCash: shiftResult?.startingCash ?? summary.value?.openingBalance ?? 0,
+      },
+      difference: diff,
+      deficit: diff < 0 ? Math.abs(diff) : 0,
+      surplus: diff > 0 ? diff : 0,
+      hasDeficit: diff < 0,
+    }
     showResult.value = true
   } else {
-    errorMsg.value = result.message
+    errorMsg.value = result.message || 'Gagal menutup shift'
   }
 }
 
-const handleLogout = async () => {
-  await authStore.logout()
+const handleDismiss = () => {
+  // User is already logged out — redirect to login
   router.push('/login')
 }
 

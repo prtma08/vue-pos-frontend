@@ -73,64 +73,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 import { useShiftStore } from '@/stores/shift'
-import { useCartStore } from '@/stores/cart'
 
 const router = useRouter()
-const authStore = useAuthStore()
 const shiftStore = useShiftStore()
-const cartStore = useCartStore()
-
-const theme = ref(localStorage.getItem('nextore-theme') || 'light')
-const balanceFormatted = ref('')
-const balanceRaw = ref(0)
-const errorMsg = ref('')
-const balanceInput = ref(null)
-
-const quickAmounts = [100000, 200000, 300000, 500000]
-
-const currentDate = computed(() => {
-  return new Date().toLocaleDateString('id-ID', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  })
-})
-
-const formatCurrency = (v) => Math.round(v).toLocaleString('id-ID')
-
-const formatBalance = () => {
-  const digits = balanceFormatted.value.replace(/\D/g, '')
-  balanceRaw.value = parseInt(digits) || 0
-  balanceFormatted.value = balanceRaw.value > 0 ? balanceRaw.value.toLocaleString('id-ID') : ''
-}
-
-const setQuickAmount = (amt) => {
-  balanceRaw.value = amt
-  balanceFormatted.value = amt.toLocaleString('id-ID')
-}
-
-const handleOpenShift = async () => {
-  errorMsg.value = ''
-  if (balanceRaw.value <= 0) {
-    errorMsg.value = 'Modal awal harus lebih dari Rp 0'
-    return
-  }
-
-  const result = await shiftStore.openShift(balanceRaw.value)
-  if (result.success) {
-    // Clear semua keranjang sisa dari shift sebelumnya
-    cartStore.clearAllOrders()
-    router.push('/cashier')
-  } else {
-    errorMsg.value = result.message
-  }
-}
-
-const goBack = () => {
-  router.push('/cashier/device-select')
-}
 
 onMounted(async () => {
   // If shift already open, go directly to cashier
@@ -139,8 +87,9 @@ onMounted(async () => {
     router.replace('/cashier')
     return
   }
-  await nextTick()
-  balanceInput.value?.focus()
+  // Shift opening is now merged into POS device selection
+  // Redirect to the device selector which handles both steps
+  router.replace('/cashier/device-select')
 })
 </script>
 

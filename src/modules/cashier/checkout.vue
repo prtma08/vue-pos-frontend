@@ -146,21 +146,27 @@
             :key="product.id"
             class="product-card"
             :class="{
-              'state-low': product.isLowStock && product.stock > 0,
-              'state-out': product.stock === 0
+              'state-low': product.isLowStock && product.stock > 0 && !product.isBundle,
+              'state-out': (product.isBundle ? productsStore.getBundleMaxQty(product.id) <= 0 : product.stock === 0),
+              'state-bundle': product.isBundle,
             }"
-            @click="product.stock > 0 && handleAddProduct(product)"
+            @click="(product.isBundle ? productsStore.getBundleMaxQty(product.id) : product.stock) > 0 && handleAddProduct(product)"
           >
             <div class="product-visual">
               <span class="product-emoji">{{ productEmoji(product) }}</span>
-              <span v-if="product.isLowStock && product.stock > 0" class="stock-flag flag-warning">Menipis</span>
-              <span v-if="product.stock === 0" class="stock-flag flag-out">Habis</span>
+              <span v-if="product.isLowStock && product.stock > 0 && !product.isBundle" class="stock-flag flag-warning">Menipis</span>
+              <span v-if="product.isBundle ? productsStore.getBundleMaxQty(product.id) <= 0 : product.stock === 0" class="stock-flag flag-out">Habis</span>
+              <span v-if="product.hasLossAlert" class="stock-flag flag-loss" title="Harga jual < HPP">⚠️ Rugi</span>
+              <span v-if="product.isBundle" class="stock-flag flag-bundle">📦 Bundle</span>
             </div>
             <div class="product-details">
               <h3 class="product-title">{{ product.name }}</h3>
               <p class="product-price">Rp {{ formatCurrency(product.sellingPrice) }}</p>
               <div class="product-meta">
-                <span class="meta-stock">Stok: <strong>{{ product.stock }}</strong></span>
+                <span class="meta-stock">
+                  Stok: <strong>{{ product.isBundle ? productsStore.getBundleMaxQty(product.id) : product.stock }}</strong>
+                  <span v-if="product.isBundle" class="meta-bundle-hint">(bundle)</span>
+                </span>
               </div>
             </div>
             <div class="product-overlay">
@@ -209,6 +215,8 @@
                 <p class="row-name">
                   {{ item.name }}
                   <span v-if="item.isEventPrice" class="event-badge">🏷️ Event</span>
+                  <span v-if="item.isBundle" class="bundle-badge">📦</span>
+                  <span v-if="item.hasLossAlert" class="loss-badge" title="Produk ini dijual di bawah HPP">⚠️</span>
                 </p>
                 <p class="row-price">Rp {{ formatCurrency(item.price) }}</p>
               </div>
@@ -264,7 +272,7 @@
             <span class="section-label">Member</span>
             <AppCombobox
               :model-value="activeOrder.member?.id || ''"
-              :options="membersStore.members"
+              :options="membersStore.activeMembers"
               option-key="id"
               option-label="name"
               option-sub-label="phone"
@@ -319,14 +327,31 @@
 
           <!-- Order Summary -->
           <div class="order-summary">
+            <!-- Phase 3: Layered discount breakdown -->
             <div class="summary-line">
               <span>Subtotal</span>
               <span>Rp {{ formatCurrency(activeOrder.summary.subtotal) }}</span>
             </div>
-            <div v-if="activeOrder.summary.discountPercent > 0" class="summary-line summary-discount">
-              <span>Diskon ({{ activeOrder.summary.discountPercent }}%)</span>
-              <span>− Rp {{ formatCurrency(activeOrder.summary.subtotal * activeOrder.summary.discountPercent / 100) }}</span>
+            <!-- Item-level discounts (member disc + product promo) -->
+            <div v-if="(activeOrder.summary.totalItemDiscount || 0) > 0" class="summary-line summary-discount">
+              <span>Diskon Item</span>
+              <span>− Rp {{ formatCurrency(activeOrder.summary.totalItemDiscount) }}</span>
             </div>
+            <!-- Subtotal after item discounts -->
+            <div v-if="(activeOrder.summary.totalItemDiscount || 0) > 0" class="summary-line summary-sub">
+              <span>Subtotal Setelah Diskon Item</span>
+              <span>Rp {{ formatCurrency(activeOrder.summary.subtotalAfterItemDiscount) }}</span>
+            </div>
+            <!-- Transaction-level discount (auto + supervisor override combined) -->
+            <div v-if="(activeOrder.summary.transactionDiscountAmount || 0) > 0" class="summary-line summary-discount">
+              <span>
+                Diskon Transaksi
+                <span class="disc-pct-badge">{{ activeOrder.summary.effectiveTransactionDiscountPct?.toFixed(1) }}%</span>
+                <span v-if="activeOrder.summary.autoTransactionDiscountId" class="disc-auto-badge">Auto</span>
+              </span>
+              <span>− Rp {{ formatCurrency(activeOrder.summary.transactionDiscountAmount) }}</span>
+            </div>
+            <!-- Tax -->
             <div v-if="activeOrder.summary.taxPercent > 0" class="summary-line">
               <span>Pajak ({{ activeOrder.summary.taxPercent }}%)</span>
               <span>Rp {{ formatCurrency(activeOrder.summary.tax) }}</span>
@@ -381,6 +406,7 @@
         <SupervisorOverride
           v-model="showOverrideModal"
           :actionLabel="overrideActionLabel"
+          :pendingDetail="cartStore.supervisorAuthPending?.reason || ''"
           @approved="handleSupervisorApproved"
           @denied="handleSupervisorDenied"
         />
@@ -495,6 +521,7 @@ import { usePricelistStore } from '@/stores/pricelist'
 import { useRouter }       from 'vue-router'
 
 import { useStaffStore } from '@/stores/staff'
+import { useSupervisorAuth } from '@/composables/useSupervisorAuth'
 
 const authStore     = useAuthStore()
 const productsStore = useProductsStore()
@@ -659,20 +686,25 @@ const supervisorList = computed(() =>
   staffStore.staff.filter(s => s.role === 'SUPERVISOR' || s.role === 'ADMIN')
 )
 
-const verifySupervisor = () => {
+// Use real supervisor auth composable for topbar panel
+const { verifySupervisor: composableVerify } = useSupervisorAuth()
+
+const verifySupervisor = async () => {
   svError.value = ''
   const sv = supervisorList.value.find(s => s.id === svSelectedId.value)
   if (!sv) { svError.value = 'Supervisor tidak ditemukan'; return }
-  const correctPw = MOCK_SV_PASSWORDS[svSelectedId.value]
-  if (!correctPw || svPassword.value !== correctPw) {
-    svError.value = 'Password salah. Coba lagi.'
-    return
+
+  // Use composable for real backend verification
+  const result = await composableVerify(sv.username || sv.name, svPassword.value)
+  if (result.success) {
+    supervisorUnlocked.value = true
+    supervisorName.value = sv.name
+    svPassword.value = ''
+    svError.value = ''
+    showSupervisorPanel.value = false
+  } else {
+    svError.value = result.message || 'Password salah. Coba lagi.'
   }
-  supervisorUnlocked.value = true
-  supervisorName.value = sv.name
-  svPassword.value = ''
-  svError.value = ''
-  showSupervisorPanel.value = false
 }
 
 const lockSupervisor = () => {
@@ -854,7 +886,32 @@ const handleSubmitOrder = async () => {
       cartStore.clearOrder(cartStore.activeOrderId)
       if (!cartStore.orders.length) cartStore.createOrder()
     } else {
-      alert(`Gagal: ${result.message}`)
+      // Phase 4: Typed error routing
+      if (result.errorType === 'MEMBER_INACTIVE') {
+        alert(`⚠️ ${result.message}\n\nMember akan dihapus dari transaksi ini secara otomatis.`)
+        cartStore.setMember(cartStore.activeOrderId, null)
+      } else if (result.errorType === 'BUNDLE_STOCK_ERROR') {
+        const itemName = result.affectedItem?.name || 'bundle'
+        const confirmRemove = confirm(
+          `⚠️ ${result.message}\n\nHapus "${itemName}" dari keranjang dan perbarui katalog?`
+        )
+        if (confirmRemove && result.affectedItem) {
+          const itemIdx = activeOrder.value?.items.findIndex(i => i.productId === result.affectedItem.productId)
+          if (itemIdx !== undefined && itemIdx !== -1) {
+            cartStore.removeItem(cartStore.activeOrderId, itemIdx)
+          }
+        }
+        // Catalog already refreshed by cart.js; re-fetch members+discounts too for consistency
+        await Promise.all([
+          productsStore.fetchProducts({ limit: 1000 }),
+          membersStore.fetchMembers({ isActive: true }),
+        ])
+      } else if (result.errorType === 'STOCK_ERROR') {
+        alert(`⚠️ ${result.message}\n\nSilakan periksa ketersediaan stok dan sesuaikan keranjang.`)
+        // Catalog refreshed by cart.js; display refresh is automatic
+      } else {
+        alert(`Gagal: ${result.message}`)
+      }
     }
   } finally {
     submitting.value = false
@@ -874,11 +931,12 @@ const handleSwitchRole = () => {
 
 onMounted(async () => {
   await Promise.all([
-    productsStore.fetchProducts(),
+    productsStore.fetchProducts({ limit: 1000 }), // Fetch all products for cashier UI local filtering
     productsStore.fetchCategories(),
-    membersStore.fetchMembers(),
+    membersStore.fetchMembers({ isActive: true }),
     staffStore.fetchStaff(),
     pricelistStore.fetchPricelists(),
+    discountsStore.fetchAll({ isActive: true, all: true }), // Phase 3: load active discounts for auto-apply
   ])
   if (!activeOrder.value) cartStore.createOrder()
 
@@ -1427,6 +1485,22 @@ const openCFD = () => {
   color: white;
 }
 
+.flag-loss {
+  background: #f59e0b;
+  color: #1f2937;
+}
+
+.flag-bundle {
+  background: #6366f1;
+  color: white;
+}
+
+/* Bundle product card distinct border */
+.product-card.state-bundle {
+  border: 1.5px solid rgba(99, 102, 241, 0.5);
+  background: linear-gradient(135deg, var(--surface) 90%, rgba(99, 102, 241, 0.08));
+}
+
 .product-details {
   display: flex;
   flex-direction: column;
@@ -1656,6 +1730,26 @@ const openCFD = () => {
   color: #b45309;
   letter-spacing: 0.02em;
   white-space: nowrap;
+}
+
+.bundle-badge {
+  font-size: 0.75rem;
+  margin-left: 4px;
+  vertical-align: middle;
+  opacity: 0.85;
+}
+
+.loss-badge {
+  font-size: 0.75rem;
+  margin-left: 4px;
+  vertical-align: middle;
+  cursor: help;
+}
+
+.meta-bundle-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted, #9ca3af);
+  margin-left: 2px;
 }
 
 .row-price {
@@ -2011,6 +2105,40 @@ const openCFD = () => {
 
 .summary-discount {
   color: var(--success);
+}
+
+/* Phase 3: Layered discount summary lines */
+.summary-sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: 0.4rem;
+  margin-top: 0.2rem;
+}
+
+.disc-pct-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: rgba(var(--success-rgb, 16,185,129), 0.15);
+  color: var(--success);
+  border-radius: 999px;
+  padding: 0 5px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.disc-auto-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 600;
+  background: rgba(99,102,241,0.15);
+  color: #6366f1;
+  border-radius: 999px;
+  padding: 0 5px;
+  margin-left: 3px;
+  vertical-align: middle;
+  letter-spacing: 0.03em;
 }
 
 .summary-divider {
