@@ -302,7 +302,28 @@ const availableProducts = computed(() =>
 const getProductName = (id) => productsStore.products.find(p => p.id === id)?.name ?? id
 const getProductSku  = (id) => productsStore.products.find(p => p.id === id)?.sku  ?? ''
 
-const addTargetProduct    = (id) => { if (id && !form.appliedProductIds.includes(id)) form.appliedProductIds.push(id) }
+const addTargetProduct    = (id) => {
+  if (!id) return;
+  
+  // Periksa apakah produk sudah berada di diskon aktif lain
+  const existingDiscountWithProduct = store.discounts.find(d => 
+    (!d.isTransactionLevel && !d.isMemberLevel) && 
+    d.isActive && 
+    d.id !== editTarget.value?.id &&
+    Array.isArray(d.appliedProductIds) && d.appliedProductIds.includes(id)
+  )
+
+  if (existingDiscountWithProduct) {
+     const pName = getProductName(id);
+     formError.value = `Produk ${pName} telah berada di diskon "${existingDiscountWithProduct.name}".`;
+     return;
+  }
+
+  if (!form.appliedProductIds.includes(id)) {
+    formError.value = ''; // clear error
+    form.appliedProductIds.push(id)
+  }
+}
 const removeTargetProduct = (id) => { form.appliedProductIds = form.appliedProductIds.filter(x => x !== id) }
 
 const formatDate = (d) => {

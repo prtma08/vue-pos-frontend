@@ -177,17 +177,17 @@
               </transition>
 
               <!-- Form Inputs -->
-              <form @submit.prevent="handleSaveModal" class="purchase-form mt-2">
+              <form @submit.prevent="handleSaveModal" class="purchase-form mt-2" novalidate>
                 <div class="form-row-2">
                   <div class="form-group">
                     <label class="form-label">Tambahan Jumlah (Qty) <span class="req">*</span></label>
-                    <input v-model.number="form.qty" class="input-field styled-input" type="number" min="1" required placeholder="0" />
+                    <input v-model.number="form.qty" class="input-field styled-input" type="number" placeholder="0" />
                   </div>
                   <div class="form-group">
                     <label class="form-label">Harga Beli / Unit Terbaru <span class="req">*</span></label>
                     <div class="input-prefix-wrap">
                       <span class="iprefix">Rp</span>
-                      <input v-model.number="form.purchasePrice" class="input-field styled-input iprefix-pad font-mono" type="number" min="0" required placeholder="0" />
+                      <input v-model.number="form.purchasePrice" class="input-field styled-input iprefix-pad font-mono" type="number" placeholder="0" />
                     </div>
                   </div>
                 </div>
@@ -195,7 +195,7 @@
                 <transition name="slide-down">
                   <div v-if="needsExpiry" class="form-group slide-in">
                     <label class="form-label">Tanggal Kadaluarsa <span class="req">*</span> (Wajib karena kategori)</label>
-                    <input v-model="form.expiryDate" class="input-field styled-input" type="date" :required="needsExpiry" />
+                    <input v-model="form.expiryDate" class="input-field styled-input" type="date" :min="today" />
                   </div>
                 </transition>
 
@@ -342,9 +342,10 @@ const needsExpiry = computed(() => {
   }
   const catId = p.categoryId || p.category?.id
   if (!catId) return false
-  const cat = categoriesStore.categories.find(c => c.id === catId)
   return cat?.hasExpiry === true
 })
+
+const today = new Date().toISOString().split('T')[0]
 
 // ── Interactions ─────────────────────────────────────────────────────────────
 const handleSelectProductNew = (product) => {
@@ -386,12 +387,18 @@ const closeModal = () => {
 
 const handleSaveModal = async () => {
   formError.value = ''
+
+  if (!form.qty || form.qty <= 0) {
+    formError.value = 'Qty wajib diisi dan harus lebih dari 0.';
+    return;
+  }
+  if (form.purchasePrice === '' || form.purchasePrice === null || form.purchasePrice < 0) {
+    formError.value = 'Harga beli wajib diisi dan tidak bisa minus / kurang dari 0.';
+    return;
+  }
+
   if (needsExpiry.value && !form.expiryDate) {
     formError.value = `Kategori ini mewajibkan Tanggal Kadaluarsa diisi.`
-    return
-  }
-  if (form.qty <= 0 || form.purchasePrice < 0) {
-    formError.value = 'Qty dan Harga Beli tidak valid.'
     return
   }
 
